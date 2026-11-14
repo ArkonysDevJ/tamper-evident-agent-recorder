@@ -34,9 +34,9 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Component | Blueprint | Spec | Status |
 | --- | --- | --- | --- |
 | Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | implemented |
-| Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | implemented for logs without anchors |
-| Durable file primitives | §5.5 | 008 | implemented; not yet used by the writer |
-| Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | not implemented |
+| Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | implemented |
+| Durable file primitives | §5.5 | 008 | implemented; used by the anchor flow |
+| Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | implemented; recovery of interrupted anchors is spec 006 |
 | Tamper battery | §7 | 004 | not implemented |
 | Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | not implemented |
 | Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
@@ -53,7 +53,8 @@ initializeChain / ChainWriter.open
   └─ RecoveryClassifier (interface; spec 006)       ← default: "not implemented"
 ChainWriter.append (serial queue)
   └─ build block (ts = max(now, head ts)) → Step1Checker.check (admission, EVENT_REJECTED)
-  └─ writerConn.mutate: recheck durability → INSERT → AnchorHook (interface; spec 003) → COMMIT
+  └─ writerConn.mutate: recheck durability → INSERT → AnchorHook (automatic trigger, spec 003) → COMMIT
+  └─ pending anchor set? → TSA flow in the same queue slot (spec 003, below)
 exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 → events.jsonl
 ```
 
@@ -72,7 +73,7 @@ exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 
 | `src/chain/initialize.ts` | `initializeChain`: atomic creation, non-mutating inspection, step 4 mapping | §5.3a |
 | `src/chain/writer.ts` | `ChainWriter`: start-up, admission, durable append | §5.3, §5.4 |
 | `src/chain/export.ts` | Canonical SQL → `events.jsonl` export | §5.3 |
-| `src/chain/interfaces.ts` | `RecoveryClassifier` (default: not implemented) and `AnchorHook` (default: no-op) | §5.6, §5.7 |
+| `src/chain/interfaces.ts` | `RecoveryClassifier` (default: not implemented) and `AnchorHook` (writer default: the automatic trigger) | §5.6, §5.7 |
 | `src/chain/profile.ts` | Cut profiles and whether automatic recovery applies | §8 |
 | `src/db/writer-conn.ts` | The single writer session: never pooled, never reconnected, commit outcome | §5.3, §5.4 |
 | `src/db/settings.ts` | Encoding and durability preconditions | §5.3, §5.4 |
@@ -102,16 +103,57 @@ mutation never starts once writerConn is lost. The guard is checked before each 
 each mutating system call. Entry names are plain names inside the namespace; `.writer.lock` is never published,
 renamed or deleted. Closing writerConn, releasing flock and exiting after `onFatal` are the owner's job.
 
-## Local verifier (spec 002)
+## Anchoring (spec 003)
+
+```text
+append of application record k (k > 0, k % 10 == 0, k <= max_auto_anchor_seq)
+  └─ same transaction: pending_* = (k, entry_hash[k], ts[k], "auto")              src/anchor/trigger.ts
+  └─ after COMMIT, same queue slot: runAnchorFlow                                 src/anchor/flow.ts
+       1. nonce (CSPRNG, top bits forced) → DER TimeStampReq → publish <k>.tsq     src/tsa/request.ts
+       2. POST to FreeTSA, then DigiCert on any TSA failure (5000 ms each)         src/tsa/transport.ts
+       3. checkReceipt (2.2 → 2.4, TEAR-TSA-01) + time predicate                   src/tsa/receipt.ts
+       4. publish <k>.tsr → publish <k>.anchor.json → INSERT checkpoint_anchored + clear pending (one COMMIT)
+          → durable-delete <k>.tsq
+       5. last TSA failed: INSERT checkpoint_failed + clear pending → durable-delete <k>.tsq
+       6. filesystem or SQL failure, or invalidation: no fallback, no resolution, no cleanup;
+          invalidate → drain → close writerConn → release flock → exit
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/asn1/der.ts` | Strict DER reader: TLV elements and byte ranges only, with size and depth limits | §6a |
+| `src/asn1/types.ts` | DER rules of INTEGER, BOOLEAN, NULL, OID, BIT STRING, OCTET STRING and the time types | §6a |
+| `src/asn1/encode.ts` | Minimal DER encoder for the TimeStampReq | §5.7 |
+| `src/pki/oids.ts` | Object identifiers of the profile | §6a |
+| `src/pki/algorithms.ts` | Allowed digests, signature schemes and keys; signature checks through `node:crypto` | §6a |
+| `src/pki/certificate.ts` | X.509 decoding: Names as DER bytes, the four decoded extensions, duplicates rejected | §6a |
+| `src/pki/bundle.ts` | `--tsa-ca-bundle`: strict PEM grammar, roles from the bytes, loading checks | §6a |
+| `src/pki/path.ts` | Path acceptance at genTime through bundle certificates only | §6a |
+| `src/tsa/request.ts` | Nonce and DER TimeStampReq, `tsq_der_sha256` | §5.7 step 1 |
+| `src/tsa/transport.ts` | HTTP POST per retained TSA with a 5000 ms timeout | §5.7 step 2 |
+| `src/tsa/receipt.ts` | Receipt checks shared by the writer and the verifier: structure, genTime, signature and path, commitment, time predicate | §5.7 step 3, §6 Steps 2.2–2.4, §6a |
+| `src/anchor/package.ts` | `<k>.anchor.json` bytes and the Step 2.1 check | §4.5, §6 Step 2.1 |
+| `src/anchor/trigger.ts` | Automatic trigger in the append transaction | §5.7 |
+| `src/anchor/flow.ts` | The TSA flow for anchor k on the durable primitives | §5.5, §5.7 |
+
+**Own trust surface: the DER reader.** Certificates, CMS and RFC 3161 structures are read by a DER reader written
+in this repository, not by a library: `node:crypto` does not expose DER Names, extension criticality or CMS
+structure. The reader accepts only definite, minimal lengths and single-byte identifiers, rejects trailing bytes
+and out-of-bounds reads, and limits size (1 MiB) and depth (32). It is tested with negative vectors for every
+rejection rule and checked against `openssl` on every real receipt and certificate (`npm run test:local`). It has
+had no external review. No cryptographic primitive is implemented here: hashes, signatures and key loading use
+`node:crypto`.
+
+## Local verifier (spec 002, Steps 2–3 from spec 003)
 
 ```text
 tear-verify (src/cli/tear-verify.ts) → parseArgs → verifyOffline
   1. namespace: basename is a lowercase UUID, directory readable     ┐ any failure:
   2. log: readable                                                    │ INPUT_UNAVAILABLE 0, exit 2
-  3. bundle: readable → BundleLoader (extension; spec 003)            ┘
+  3. bundle: readable → loadBundle (PEM grammar, TEAR-TSA-01 loading) ┘
   Step 1: logRows (LF framing, strict UTF-8, no BOM) → Step1Checker   (the writer's own rule core)
-  Steps 2, 2b → AnchorVerifier (extension; spec 003)
-  Step 3 → successOutput (§6b groups)
+  Step 2: inventory (lstat, O_NOFOLLOW) → per package, ascending k: 2.1 … 2.7
+  Step 2b: control relations → Step 3: coverage and informational lines (§6b groups)
 ```
 
 | Module | What it does | Blueprint |
@@ -121,11 +163,11 @@ tear-verify (src/cli/tear-verify.ts) → parseArgs → verifyOffline
 | `src/verify/verify.ts` | Input loading order, Step 1 over the log, extensions, Step 3 | §6, §6b |
 | `src/verify/framing.ts` | JSONL rows: final LF, empty rows, unterminated last row, strict UTF-8, BOM | §6 Step 1 |
 | `src/verify/output.ts` | Canonical failure, success and `INPUT_UNAVAILABLE` lines | §6b |
-| `src/verify/extensions.ts` | `BundleLoader` and `AnchorVerifier` extension points and their current defaults | §6, §6a |
+| `src/verify/extensions.ts` | `BundleLoader` and `AnchorVerifier` extension points, set to the TEAR-TSA-01 implementations | §6, §6a |
+| `src/verify/anchors.ts` | Step 2 inventory and packages, Step 2b, `ANCHOR_TIME` lines | §6 Steps 2–3, §6b |
 
-The verifier and the writer share `src/chain/step1.ts`. The default `AnchorVerifier` handles only a namespace
-without entries (besides `.writer.lock`) and a log without control events; anything else exits 3 with the
-reason on stderr, outside the §6b contract. The default `BundleLoader` only requires readable bytes.
+The verifier and the writer share `src/chain/step1.ts` and `src/tsa/receipt.ts`. Exit 3 (outside the §6b
+contract) remains only for an internal error.
 
 ## Native binding
 
@@ -144,4 +186,7 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `src/` | Modules listed above |
 | `test/unit/` | Tests without PostgreSQL (`npm test`, run in CI) |
 | `test/pg/` | Tests against a local PostgreSQL (`npm run test:pg`) |
-| `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, a recording and fault-injecting `fs` double, child processes for lock and handoff tests |
+| `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, a recording and fault-injecting `fs` double, child processes for lock and handoff tests, a test PKI that builds certificates and RFC 3161 receipts, in-process test TSAs |
+| `test/fixtures/frozen-m1/` | The frozen M1 fixture: `events.jsonl`, the copied namespace with real FreeTSA and DigiCert receipts, and `manifest.json` (digests, serials, genTime, accuracy, optional fields) |
+| `test/fixture-tools/` | The one-time fixture builder (`npm run fixture:build`; local PostgreSQL and both TSAs) |
+| `test/local/` | Local checks with external tools (`npm run test:local`): the DER reader against `openssl` |
