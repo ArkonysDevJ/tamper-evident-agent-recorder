@@ -11,6 +11,7 @@ import { bundleSha256 } from '../crypto/digests.js';
 import { WRITER_LOCK_NAME } from '../fs/writer-lock.js';
 import { defaultExtensions } from './extensions.js';
 import type { VerifierExtensions } from './extensions.js';
+import type { LoadedBundle } from '../pki/bundle.js';
 import { logRows } from './framing.js';
 import {
   EXIT_FAILED,
@@ -28,8 +29,9 @@ export interface VerifyInputs {
 }
 
 /**
- * Exit 3 is outside the §6b contract: a case that needs a not-yet-implemented
- * extension, or an internal error. stdout is empty and stderr says why.
+ * Exit 3 is outside the §6b contract: an internal error (an unclassified
+ * exception). stdout is empty and stderr says why; there is no successful
+ * verification after it (§6b).
  */
 export const EXIT_OUTSIDE_CONTRACT = 3;
 
@@ -62,11 +64,12 @@ export function verifyOffline(inputs: VerifyInputs, ext: VerifierExtensions = de
     return inputUnavailable;
   }
 
-  // 3. CA bundle access and loading.
+  // 3. CA bundle access, grammar and TEAR-TSA-01 loading.
   let bundleBytes: Buffer;
+  let bundle: LoadedBundle;
   try {
     bundleBytes = fs.readFileSync(inputs.bundlePath);
-    ext.bundleLoader.load(bundleBytes);
+    bundle = ext.bundleLoader.load(bundleBytes);
   } catch {
     return inputUnavailable;
   }
@@ -80,13 +83,10 @@ export function verifyOffline(inputs: VerifyInputs, ext: VerifierExtensions = de
   const head = checker.head;
   if (head === undefined) return { exitCode: EXIT_FAILED, stdout: failureOutput('GENESIS_INVALID', 0), stderr: '' };
 
-  // Steps 2 and 2b, and the anchored part of Step 3: extension point (spec 003).
-  const anchors = ext.anchorVerifier.verify({ nsPath, entries, rows: checker.accepted, bundleBytes });
+  // Steps 2 and 2b, and the anchored part of Step 3.
+  const anchors = ext.anchorVerifier.verify({ nsPath, chainId, entries, rows: checker.accepted, bundle });
   if (anchors.kind === 'failure') {
     return { exitCode: EXIT_FAILED, stdout: failureOutput(anchors.code, anchors.param), stderr: '' };
-  }
-  if (anchors.kind === 'not_implemented') {
-    return { exitCode: EXIT_OUTSIDE_CONTRACT, stdout: '', stderr: `tear-verify: ${anchors.reason}\n` };
   }
 
   // Step 3.
