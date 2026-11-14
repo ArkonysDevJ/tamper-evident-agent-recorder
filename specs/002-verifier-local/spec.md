@@ -54,3 +54,6 @@ Recorded here and declared in the report of the work package that implements the
   or a log with control events, exits 3 with empty stdout and the reason on stderr. Exit 3 is outside the §6b
   contract and is never a successful verification. An internal error also exits 3.
 - **First-failure placements left open (§10):** as recorded in spec 001; the verifier uses the same rule core.
+- **Whitespace in the row envelope:** JSON whitespace around a row's object (spaces, tabs, and CR before the LF)
+  is accepted, as RFC 8259 permits. The hash covers the canonical block, so this whitespace does not change the
+  verification result. Spec 007 lists it as a known limit.
