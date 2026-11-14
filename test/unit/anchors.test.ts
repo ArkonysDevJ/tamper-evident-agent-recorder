@@ -564,7 +564,8 @@ test('003 AC-20 closed-inputs', async (t) => {
     fs.writeFileSync(guardPath, GUARD);
     const r = spawnSync(process.execPath, ['--import', guardPath, CLI_PATH, ...cliArgs(inputs)], {
       encoding: 'utf8',
-      env: { ...process.env, TEAR_ALLOWED_ROOTS: `${dir}:${path.resolve('dist')}:${path.resolve('node_modules')}`, SSL_CERT_FILE: '/nonexistent', SSL_CERT_DIR: '/nonexistent' },
+      // No module outside dist/ is needed: the verifier loads no dependency (no native lock binding, no pg).
+      env: { ...process.env, TEAR_ALLOWED_ROOTS: `${dir}:${path.resolve('dist')}`, SSL_CERT_FILE: '/nonexistent', SSL_CERT_DIR: '/nonexistent' },
     });
     assert.equal(r.stderr, '');
     assert.equal(r.status, 0);

@@ -17,7 +17,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TearError } from '../errors.js';
 import { SerialQueue } from '../util/serial-queue.js';
-import { WRITER_LOCK_NAME } from './writer-lock.js';
+import { WRITER_LOCK_NAME } from './names.js';
 
 /** The writer state that every namespace mutation must check (§5.3). */
 export interface MutationGuard {

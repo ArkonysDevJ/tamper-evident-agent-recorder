@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { isChainId } from '../chain/ids.js';
 import { Step1Checker } from '../chain/step1.js';
 import { bundleSha256 } from '../crypto/digests.js';
-import { WRITER_LOCK_NAME } from '../fs/writer-lock.js';
+import { WRITER_LOCK_NAME } from '../fs/names.js';
 import { defaultExtensions } from './extensions.js';
 import type { VerifierExtensions } from './extensions.js';
 import type { LoadedBundle } from '../pki/bundle.js';

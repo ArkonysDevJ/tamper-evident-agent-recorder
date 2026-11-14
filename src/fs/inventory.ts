@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TearError } from '../errors.js';
-import { WRITER_LOCK_NAME } from './writer-lock.js';
+import { WRITER_LOCK_NAME } from './names.js';
 
 export type EntryKind = 'tsq' | 'tsr' | 'anchor.json';
 
