@@ -22,5 +22,8 @@
   "dependencies": {
     "fs-ext": "2.1.1",
     "pg": "8.16.3"
+  },
+  "allowScripts": {
+    "fs-ext@2.1.1": true
   }
 }
