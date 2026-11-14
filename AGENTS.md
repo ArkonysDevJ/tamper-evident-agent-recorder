@@ -44,7 +44,7 @@ Rules for any agent or person working in this repository.
 | `npm test` | Build and run the tests that need no PostgreSQL (`test/unit`); this is what CI runs | now |
 | `npm run test:pg` | Build and run the tests that need a local PostgreSQL (`test/pg`). Connection from the standard `PGHOST`, `PGDATABASE`, `PGUSER` variables; defaults: socket `/var/run/postgresql`, database `tear_test` | now |
 | `npm run test:tamper` | Run the tamper battery (M1 + X1 + X2, Blueprint §7) | spec 004 |
-| `tear-verify --log <events.jsonl> --checkpoints <dir>/<chain_id>/ --tsa-ca-bundle certs/tsa_roots.pem` | Verify an exported log offline (Blueprint §6) | spec 002 |
+| `node dist/src/cli/tear-verify.js --log <events.jsonl> --checkpoints <dir>/<chain_id>/ --tsa-ca-bundle certs/tsa_roots.pem` | Verify an exported log offline (Blueprint §6); logs with anchors need spec 003 | now (after `npm run build`) |
 
 When you run tests, report the summary (passed, failed, skipped) and each failure. Do not paste the full
 output. Only report counts from a run you actually made.

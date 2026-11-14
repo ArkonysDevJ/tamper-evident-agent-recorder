@@ -43,3 +43,14 @@ Build `tear-verify` up to Step 1 (local chain) and its canonical output, on top 
 ## 5. Dependencies
 
 Spec 001 (record format, JCS, hashing, Step 1 core, export).
+
+## Implementation choices (not normative)
+
+Recorded here and declared in the report of the work package that implements them.
+
+- **Malformed command line:** a missing, repeated or unknown option is an invocation failure:
+  `INPUT_UNAVAILABLE 0`, exit 2 (§6b).
+- **Inputs that need anchor verification:** until spec 003, a namespace with entries other than `.writer.lock`,
+  or a log with control events, exits 3 with empty stdout and the reason on stderr. Exit 3 is outside the §6b
+  contract and is never a successful verification. An internal error also exits 3.
+- **First-failure placements left open (§10):** as recorded in spec 001; the verifier uses the same rule core.

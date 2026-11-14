@@ -34,7 +34,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Component | Blueprint | Spec | Status |
 | --- | --- | --- | --- |
 | Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | implemented |
-| Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | not implemented |
+| Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | implemented for logs without anchors |
 | Durable file primitives | §5.5 | 008 | not implemented |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | not implemented |
 | Tamper battery | §7 | 004 | not implemented |
@@ -82,6 +82,31 @@ exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 
 | `src/fs/inventory.ts` | Read-only namespace inventory under §5.6 step 2 names and types | §5.6 |
 | `src/util/serial-queue.ts` | Strict FIFO queue per chain | §5.3 |
 
+## Local verifier (spec 002)
+
+```text
+tear-verify (src/cli/tear-verify.ts) → parseArgs → verifyOffline
+  1. namespace: basename is a lowercase UUID, directory readable     ┐ any failure:
+  2. log: readable                                                    │ INPUT_UNAVAILABLE 0, exit 2
+  3. bundle: readable → BundleLoader (extension; spec 003)            ┘
+  Step 1: logRows (LF framing, strict UTF-8, no BOM) → Step1Checker   (the writer's own rule core)
+  Steps 2, 2b → AnchorVerifier (extension; spec 003)
+  Step 3 → successOutput (§6b groups)
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/cli/tear-verify.ts` | Command entry point; writes stdout/stderr and sets the exit code | §6, §6b |
+| `src/verify/args.ts` | The three options, each exactly once | §6 |
+| `src/verify/verify.ts` | Input loading order, Step 1 over the log, extensions, Step 3 | §6, §6b |
+| `src/verify/framing.ts` | JSONL rows: final LF, empty rows, unterminated last row, strict UTF-8, BOM | §6 Step 1 |
+| `src/verify/output.ts` | Canonical failure, success and `INPUT_UNAVAILABLE` lines | §6b |
+| `src/verify/extensions.ts` | `BundleLoader` and `AnchorVerifier` extension points and their current defaults | §6, §6a |
+
+The verifier and the writer share `src/chain/step1.ts`. The default `AnchorVerifier` handles only a namespace
+without entries (besides `.writer.lock`) and a log without control events; anything else exits 3 with the
+reason on stderr, outside the §6b contract. The default `BundleLoader` only requires readable bytes.
+
 ## Native binding
 
 Node.js core does not expose `flock(2)` (Blueprint §5.3), so the writer lock uses `fs-ext@2.1.1`, a native
@@ -99,4 +124,4 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `src/` | Modules listed above |
 | `test/unit/` | Tests without PostgreSQL (`npm test`, run in CI) |
 | `test/pg/` | Tests against a local PostgreSQL (`npm run test:pg`) |
-| `test/helpers/` | Chain builder, PostgreSQL helpers, child processes for lock and handoff tests |
+| `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, child processes for lock and handoff tests |
