@@ -14,9 +14,11 @@ Anchor the chain with RFC 3161 under the fixed TEAR-TSA-01 profile, verify ancho
 
 ## 3. Out of scope
 
-- Publish and durable-delete primitives (§5.5) and recovery of interrupted anchors (§5.6) — spec 006.
-- `closeChain` and its anchors (§5.8) — spec 006.
+- Publish, durable delete and the durability barriers (§5.5) — spec 008.
+- Recovery of interrupted anchors (§5.6) and `closeChain` (§5.8) — spec 006.
 - Running the tamper matrix (§7 M1, X1, X2) — spec 004.
+- The §7 vector with an explicitly encoded default SHA-256 `ESSCertIDv2` identifier: §10 declares that it
+  conflicts with DER, so it is not part of the test battery. Spec 007 lists it as known debt.
 
 ## 4. Acceptance criteria
 
@@ -24,7 +26,7 @@ Anchor the chain with RFC 3161 under the fixed TEAR-TSA-01 profile, verify ancho
 | --- | --- | --- | --- |
 | AC-1 | The nonce is 8 CSPRNG bytes with the §5.7 bit forcing, in range, formatted as 16 lowercase hex. | §5.7 step 1, §4.5 | `003 AC-1 nonce` |
 | AC-2 | The TimeStampReq DER has exactly the §5.7 fields, no `reqPolicy` and no extensions; `tsq_der_sha256` is its digest. | §5.7 step 1, §6a | `003 AC-2 request-der` |
-| AC-3 | Pending fields are set in the same transaction as application record k only when k > 0, k % 10 == 0 and k <= `max_auto_anchor_seq`; control events never trigger. | §5.7 | `003 AC-3 auto-trigger` |
+| AC-3 | Connected to the spec 001 anchor hook, pending fields are set in the same transaction as application record k only when k > 0, k % 10 == 0 and k <= `max_auto_anchor_seq`; control events never trigger. | §5.7 | `003 AC-3 auto-trigger` |
 | AC-4 | While an anchor is pending, no other append or close starts. | §5.3 layer 3, §5.7 | `003 AC-4 pending-blocks-queue` |
 | AC-5 | Each §5.7 step 2 failure condition moves the same `.tsq` to the secondary; writer, filesystem and SQL errors never trigger fallback; with one retained TSA there is no fallback. | §5.7 step 2 | `003 AC-5 fallback` |
 | AC-6 | On success the `.tsr` and `.anchor.json` are published, the control row and pending clear commit atomically, then the `.tsq` is durably deleted, in that order. | §5.7 step 4 | `003 AC-6 success-path` |
@@ -48,4 +50,16 @@ Anchor the chain with RFC 3161 under the fixed TEAR-TSA-01 profile, verify ancho
 
 ## 5. Dependencies
 
-Specs 001 and 002. AC-6 and AC-8 need the §5.5 primitives (spec 006).
+Specs 001, 002 and 008.
+
+## Implementation choices (not normative)
+
+The Blueprint leaves these to the implementation (§10). They are recorded here and declared in the report of
+the work package that implements them.
+
+- **Transport per TSA:** HTTP POST of the DER `.tsq` with `Content-Type: application/timestamp-query`
+  (RFC 3161 §3.4). Primary `https://freetsa.org/tsr`, secondary `http://timestamp.digicert.com`, in the
+  §5.7 order. The URLs are checked against the Phase 0 record when this spec starts. The response
+  `Content-Type` plays no part in acceptance; only the §5.7 step 2 and step 3 checks do.
+- **`Accuracy.seconds`:** decoded from its DER INTEGER as a `BigInt`; `ACCURACY_NS` and `LATEST_BOUND_NS`
+  are computed in `BigInt`, never through `Number`.

@@ -5,21 +5,25 @@ that proves it.
 
 ## 1. Objective
 
-Build the local hash chain: record format and hashing, namespace provisioning and its filesystem guard, the
-three exclusion layers, durable SQL storage, chain initialization, application append with writer admission,
-and canonical SQL export.
+Build the local hash chain: record format and hashing, the Step 1 rule core, namespace provisioning and its
+filesystem guard, the three exclusion layers, durable SQL storage, chain initialization (new namespace and
+inspection), application append with writer admission, and canonical SQL export.
 
 ## 2. Blueprint sections
 
-§4 (4.1–4.5), §5.1, §5.2, §5.3 (except the evidence package), §5.3a, §5.4.
+§4 (4.1–4.5), §5.1, §5.2, §5.3 (except the evidence package), §5.3a, §5.4, §6 Step 1 rules 1.1–1.10 (as a
+library over row envelopes).
 
 ## 3. Out of scope
 
-- The TSA flow, the automatic anchor trigger and pending-anchor resolution (§5.7) — spec 003.
-- The offline verifier CLI and its output (§6, §6b) — specs 002 and 003.
-- Publish and durable-delete primitives (§5.5), start-up reconciliation (§5.6), `closeChain` (§5.8) and the
-  evidence package (§5.3) — spec 006.
-- The agent adapter and its commit boundaries in use (§2, §5.4 as applied to tools) — spec 005.
+- The `tear-verify` CLI, physical JSONL framing and output (§6, §6b) — spec 002.
+- Publish, durable delete and the durability barriers (§5.5) — spec 008.
+- The anchor trigger and TSA flow (§5.7) — spec 003. This spec only provides the hook (AC-28).
+- Anchor package validation (§6 Step 2) — spec 003, consumed through an interface.
+- The E1–E10 classifier and start-up reconciliation (§5.6) — spec 006. This spec defines the classifier
+  interface that `initializeChain` calls (AC-19).
+- `closeChain` (§5.8) and the evidence package (§5.3) — spec 006.
+- The agent adapter (§2) — spec 005.
 
 ## 4. Acceptance criteria
 
@@ -43,16 +47,31 @@ and canonical SQL export.
 | AC-16 | Each isolated mirror discrepancy (payload, ts, prev_hash, seq, chain_id), a noncanonical or malformed `block_json` and a bad `entry_hash` fail `RECONCILIATION_STATE_INCONSISTENT`; a `jsonb` formatting difference with equal decoded values passes. | §5.3, §7 (SQL representation) | `001 AC-16 sql-representation` |
 | AC-17 | `initializeChain` on an empty chain and namespace writes genesis and state in one transaction, contacts no TSA, and returns `INITIALIZED` only after a confirmed COMMIT. | §5.3a | `001 AC-17 initialize-new` |
 | AC-18 | On an existing chain: an exact retry returns `ALREADY_INITIALIZED` (also when sealed, without changing `chain_closed`); a valid different genesis returns `CHAIN_INITIALIZATION_CONFLICT` before later rows are read; an invalid or mirror-corrupt genesis returns `RECONCILIATION_STATE_INCONSISTENT`; each partial SQL state returns `RECONCILIATION_STATE_INCONSISTENT`. Event rows, state row and namespace bytes are equal before and after every call. | §5.3a, §7 (initialization, inspection precedence) | `001 AC-18 initialize-existing` |
-| AC-19 | With exact genesis, the states listed in §5.3a step 4 return `RECOVERY_REQUIRED` without mutations in Base, Cut 1 and Cuts 1–2, and `RECONCILIATION_STATE_INCONSISTENT` under Cuts 1–3 and 1–4. | §5.3a, §7 (existing-chain inspection) | `001 AC-19 initialize-recovery-required` |
+| AC-19 | Inspection calls the E1–E10 classifier through an interface and maps its result to `ALREADY_INITIALIZED`, `RECOVERY_REQUIRED` or `RECONCILIATION_STATE_INCONSISTENT` as §5.3a step 4 states for the active profile, without mutations. Tested here with a stub classifier; the real classifier is spec 006. | §5.3a | `001 AC-19 inspection-mapping` |
 | AC-20 | A normal start with neither events nor state fails `CHAIN_NOT_INITIALIZED`, with only one fails `RECONCILIATION_STATE_INCONSISTENT`; an unknown initialization commit outcome returns no success and an exact retry resolves it. | §5.3a | `001 AC-20 startup-without-chain` |
 | AC-21 | A candidate row that fails Step 1 rules 1.1–1.10 is rejected with `EVENT_REJECTED <code>`; nothing is committed and the writer stays available (duplicate `call_id`, result without call, empty `task_id`). | §5.4, §7 (writer admission) | `001 AC-21 writer-admission` |
 | AC-22 | An append reports success only after a confirmed COMMIT and reports an unknown outcome as such. | §5.4 | `001 AC-22 durable-append` |
 | AC-23 | On any `writerConn` error, end or timeout the writer is invalidated, admits no new work, and checks the guard before every mutation. | §5.3 (invalidation barrier) | `001 AC-23 invalidation` |
 | AC-24 | Two chains run concurrently without sharing files; inventory and cleanup never leave their own namespace. | §5.2 | `001 AC-24 two-chains` |
 | AC-25 | Export reads one read-only REPEATABLE READ snapshot, validates it, and emits the exact §5.3 rows with final LF; any failure leaves no successful partial file. | §5.3 (canonical export) | `001 AC-25 export` |
-| AC-26 | Valid SQL tuples pass the logical Step 1 without LF bytes in `block_json`; the export passes full offline framing; a malformed JSONL copy still fails its framing diagnostic. | §5.3, §7 (SQL versus JSONL) | `001 AC-26 sql-vs-jsonl` |
+| AC-26 | Valid SQL tuples pass the logical Step 1 without LF bytes in `block_json`. | §5.3, §7 (SQL versus JSONL) | `001 AC-26 sql-logical-step1` |
+| AC-27 | The Step 1 core applies rules 1.1–1.10 in their order to an ordered sequence of row envelopes and returns the first failure with its code and parameter. | §6 Step 1 | `001 AC-27 step1-core` |
+| AC-28 | Append calls an anchor hook inside the transaction of each application record; in this spec the hook does nothing. | §5.7 | `001 AC-28 anchor-hook` |
 
 ## 5. Dependencies
 
-None to start. AC-19 needs the §5.6 classification (spec 006) and §6 Step 2 package validation (spec 003).
-AC-21 and AC-26 need the Step 1 rules (spec 002).
+None.
+
+## Implementation choices (not normative)
+
+The Blueprint leaves these to the implementation (§10). They are recorded here and declared in the report of
+the work package that implements them.
+
+- **Invalid `initializeChain` arguments** fail with `INITIALIZATION_ARGUMENT_INVALID`, before any SQL mutation.
+- **Operation literals for application events:** `tool_call` and `tool_result` use `execute_tool`;
+  `agent_final_response` uses `invoke_agent` (OpenTelemetry GenAI `gen_ai.operation.name` values).
+  `epistemic_pause` uses `tear.epistemic_pause` and `human_resolution` uses `tear.human_resolution`, since
+  OpenTelemetry defines no equivalent.
+- **Cut profile selection:** the writer, the recoverer and `initializeChain` take the profile as a required
+  explicit option (`base`, `cut1`, `cut1-2`, `cut1-3`, `cut1-4`), fixed for the life of a writer and never
+  read from an environment variable.

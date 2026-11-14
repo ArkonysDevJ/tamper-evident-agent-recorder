@@ -30,7 +30,9 @@ Each check confirms that the report contains the item; it does not judge the res
 | AC-7 | Every cut profile activated. | §9, §8 | `007 AC-7 cut-profiles` |
 | AC-8 | Every requirement not exercised by an executed test, listed as "not tested", with the §10 known debt; failed tests listed as failed. | §9, §10 | `007 AC-8 not-tested` |
 | AC-9 | M3 as measured, met or not, or "unmeasured" under Cut 1. | §7 (M3), §8 | `007 AC-9 m3` |
+| AC-10 | Under "not tested / known debt", at least: the `ESSCertIDv2` vector with an explicitly encoded default SHA-256 identifier (excluded from the battery because it conflicts with DER); whether a root's own `pathLenConstraint` counts; optional CMS SignedData fields (other CertificateChoices, crls, unsignedAttrs, sid form); the three unpinned first-failure placements (duplicate `seq` keys, a later row with seq=0 carrying an application event, `anchor.block` schema at Step 2.1 versus 2.6); the integer rule by value (`10.0`, `1e1`). | §10 | `007 AC-10 known-debt-entries` |
+| AC-11 | Every implementation choice recorded in the specs for points §10 leaves open, marked as not normative. | §10 | `007 AC-11 implementation-choices` |
 
 ## 5. Dependencies
 
-Specs 001 to 006.
+Specs 001 to 006 and 008.
