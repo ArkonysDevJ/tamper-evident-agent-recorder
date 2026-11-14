@@ -38,7 +38,8 @@ Recorded here and declared in the report of the work package that implements the
 - **Mutation queue:** each writer generation owns one `DurableNamespace`, whose strict FIFO queue carries every
   file mutation of the chain and tracks it until it settles. Chain operations that publish or delete (anchoring,
   recovery, close) await these mutations from inside their own slot of the chain's operation queue, so the two
-  queues never interleave work for one chain.
+  queues never interleave work for one chain. §5.3 requires every file mutation of a chain to share one strict
+  serial queue; it does not require that queue to be the chain's operation queue.
 - **Guard checks:** the guard is checked before each operation starts and again before each mutating system call
   inside it. An invalidation observed mid-operation stops it there, with no cleanup.
 - **Entry names:** a mutation accepts only a plain entry name inside the namespace and never `.writer.lock`; an

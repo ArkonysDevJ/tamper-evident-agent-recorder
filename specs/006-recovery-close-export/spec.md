@@ -35,6 +35,7 @@ B0–B3, the evidence package for offline verification, and fault injection at e
 | AC-10 | B2 and B3 acceptance depends only on the signed `genTime` against the anchored row's `ts`, not on the host clock. | §5.8, §3.3 item 10 | `006 AC-10 close-time-predicate` |
 | AC-11 | The evidence package copies only complete `.tsr` + `.anchor.json` pairs before the export; a package published after the copy yields `ANCHOR_EVIDENCE_MISSING`, exit 0. | §5.3 (evidence package) | `006 AC-11 evidence-package` |
 | AC-12 | Under Cut 2 B3 never starts; under Cut 3 no cleanup or repair runs and only a clean-E1-equivalent state starts. | §8, §7 | `006 AC-12 cut-profiles` |
+| AC-13 | A `.tmp` left by a publish that the invalidation guard stopped before its rename is classified according to §5.6, like any other leftover temporary file. | §5.3, §5.5, §5.6 | `006 AC-13 guard-stopped-publish` |
 
 ## 5. Dependencies
 
