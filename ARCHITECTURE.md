@@ -35,7 +35,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | --- | --- | --- | --- |
 | Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | implemented |
 | Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | implemented for logs without anchors |
-| Durable file primitives | §5.5 | 008 | not implemented |
+| Durable file primitives | §5.5 | 008 | implemented; not yet used by the writer |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | not implemented |
 | Tamper battery | §7 | 004 | not implemented |
 | Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | not implemented |
@@ -82,6 +82,26 @@ exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 
 | `src/fs/inventory.ts` | Read-only namespace inventory under §5.6 step 2 names and types | §5.6 |
 | `src/util/serial-queue.ts` | Strict FIFO queue per chain | §5.3 |
 
+## Durable file primitives (spec 008)
+
+```text
+DurableNamespace(nsPath, guard: MutationGuard, { fsOps?, onFatal? })     one per writer generation
+  every call → FIFO mutation queue → guard check → operation
+  publish(name, bytes)           open <name>.tmp → write → fsync → close → rename → fsync dir
+  durableDelete([{name, optional}]) unlink each (ENOENT ignored only if optional) → fsync dir
+  recoveredPackageBarrier(names) open O_NOFOLLOW → regular file? → fsync → close; then fsync dir
+  any failure → guard.invalidate() → refuse all later work → drain → onFatal(cause); no cleanup
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/fs/durable.ts` | The three primitives, their mutation queue, the guard checks and fail-stop handling | §5.3, §5.5 |
+
+`WriterConn` is a `MutationGuard`: it is invalidated on any error, end or timeout of the session, so a namespace
+mutation never starts once writerConn is lost. The guard is checked before each operation starts and again before
+each mutating system call. Entry names are plain names inside the namespace; `.writer.lock` is never published,
+renamed or deleted. Closing writerConn, releasing flock and exiting after `onFatal` are the owner's job.
+
 ## Local verifier (spec 002)
 
 ```text
@@ -124,4 +144,4 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `src/` | Modules listed above |
 | `test/unit/` | Tests without PostgreSQL (`npm test`, run in CI) |
 | `test/pg/` | Tests against a local PostgreSQL (`npm run test:pg`) |
-| `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, child processes for lock and handoff tests |
+| `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, a recording and fault-injecting `fs` double, child processes for lock and handoff tests |
