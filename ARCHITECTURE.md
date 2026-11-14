@@ -33,7 +33,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 
 | Component | Blueprint | Spec | Status |
 | --- | --- | --- | --- |
-| Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | not implemented |
+| Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | implemented |
 | Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | not implemented |
 | Durable file primitives | §5.5 | 008 | not implemented |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | not implemented |
@@ -42,6 +42,46 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
 | Final report | §8, §9 | 007 | not written |
 
+## Data core (spec 001)
+
+```text
+initializeChain / ChainWriter.open
+  └─ acquireExclusion: namespace exists → statfs guard → flock(.writer.lock) → writerConn
+       └─ WriterConn.open: SET synchronous_commit=on → encoding + durability check → pg_try_advisory_lock
+  └─ loadChain (one read-only snapshot on writerConn)
+       └─ checkSqlRow (block_json authority, mirrors) → Step1Checker (rules 1.1–1.10) → validateState
+  └─ RecoveryClassifier (interface; spec 006)       ← default: "not implemented"
+ChainWriter.append (serial queue)
+  └─ build block (ts = max(now, head ts)) → Step1Checker.check (admission, EVENT_REJECTED)
+  └─ writerConn.mutate: recheck durability → INSERT → AnchorHook (interface; spec 003) → COMMIT
+exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 → events.jsonl
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/json/strict-json.ts` | Strict JSON parser: duplicate keys, lone surrogates, non-finite numbers rejected | §4.1, §4.3 |
+| `src/json/jcs.ts` | RFC 8785 canonical serialization | §4.3 |
+| `src/crypto/digests.ts` | `entry_hash`, bundle digest, `args_hmac`, `result_digest`, `response_digest` | §4.3, §4.4 |
+| `src/time/timestamps.ts` | `O_i.ts` and GeneralizedTime grammars, epoch nanoseconds, writer timestamp rule | §4.2, §5.7 |
+| `src/chain/ids.ts` | UUID and hex64 forms, zero hash, chain version | §4.1 |
+| `src/chain/schema.ts` | Row envelope and the eight payload schemas, U+0000 and Unicode domain | §4.1, §4.4 |
+| `src/chain/step1.ts` | Step 1 rule core, incremental (`check` for admission, `accept` for loading) | §6 Step 1 |
+| `src/chain/sql-rows.ts` | SQL representation check: `block_json` authority, commitment, mirrors | §5.3 |
+| `src/chain/state.ts` | Snapshot load on writerConn, full validation, state invariants | §5.3, §5.3a |
+| `src/chain/exclusion.ts` | Start-up order: namespace, statfs, flock, writerConn and advisory lock | §5.1, §5.3 |
+| `src/chain/initialize.ts` | `initializeChain`: atomic creation, non-mutating inspection, step 4 mapping | §5.3a |
+| `src/chain/writer.ts` | `ChainWriter`: start-up, admission, durable append | §5.3, §5.4 |
+| `src/chain/export.ts` | Canonical SQL → `events.jsonl` export | §5.3 |
+| `src/chain/interfaces.ts` | `RecoveryClassifier` (default: not implemented) and `AnchorHook` (default: no-op) | §5.6, §5.7 |
+| `src/chain/profile.ts` | Cut profiles and whether automatic recovery applies | §8 |
+| `src/db/writer-conn.ts` | The single writer session: never pooled, never reconnected, commit outcome | §5.3, §5.4 |
+| `src/db/settings.ts` | Encoding and durability preconditions | §5.3, §5.4 |
+| `src/db/schema.ts` | `tear_events` and `tear_chain_state`, provisioned separately | §5.3 |
+| `src/fs/namespace.ts` | Provisioning with unconditional parent fsync, statfs guard | §5.1, §5.2 |
+| `src/fs/writer-lock.ts` | `flock(2)` on `.writer.lock` through `fs-ext` | §5.3 |
+| `src/fs/inventory.ts` | Read-only namespace inventory under §5.6 step 2 names and types | §5.6 |
+| `src/util/serial-queue.ts` | Strict FIFO queue per chain | §5.3 |
+
 ## Files
 
 | Path | What it is |
@@ -49,4 +89,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | `docs/BLUEPRINT.md` | Normative design, hash-pinned |
 | `certs/tsa_roots.pem` | Pinned TSA bundle from Phase 0, hash-pinned |
 | `specs/` | One spec per work package |
-| `src/index.ts` | Placeholder so the compiler has an input; no code yet |
+| `src/` | Modules listed above |
+| `test/unit/` | Tests without PostgreSQL (`npm test`, run in CI) |
+| `test/pg/` | Tests against a local PostgreSQL (`npm run test:pg`) |
+| `test/helpers/` | Chain builder, PostgreSQL helpers, child processes for lock and handoff tests |

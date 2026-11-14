@@ -75,3 +75,9 @@ the work package that implements them.
 - **Cut profile selection:** the writer, the recoverer and `initializeChain` take the profile as a required
   explicit option (`base`, `cut1`, `cut1-2`, `cut1-3`, `cut1-4`), fixed for the life of a writer and never
   read from an environment variable.
+- **First-failure placements left open (§10):** a row with duplicate `seq` keys is a JSON failure, reported
+  as `JCS_SCHEMA_INVALID <expected_seq>`; an application event at seq=0 on a later row fails the §4.4 event
+  category rule in Step 1.1, reported as `JCS_SCHEMA_INVALID 0`.
+- **Integer rule by value (§10):** integer fields are checked on the parsed number, so `10.0` and `1e1` are
+  accepted as 10.
+
