@@ -78,9 +78,16 @@ exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 
 | `src/db/settings.ts` | Encoding and durability preconditions | §5.3, §5.4 |
 | `src/db/schema.ts` | `tear_events` and `tear_chain_state`, provisioned separately | §5.3 |
 | `src/fs/namespace.ts` | Provisioning with unconditional parent fsync, statfs guard | §5.1, §5.2 |
-| `src/fs/writer-lock.ts` | `flock(2)` on `.writer.lock` through `fs-ext` | §5.3 |
+| `src/fs/writer-lock.ts` | `flock(2)` on `.writer.lock` through `fs-ext` (native binding, see below) | §5.3 |
 | `src/fs/inventory.ts` | Read-only namespace inventory under §5.6 step 2 names and types | §5.6 |
 | `src/util/serial-queue.ts` | Strict FIFO queue per chain | §5.3 |
+
+## Native binding
+
+Node.js core does not expose `flock(2)` (Blueprint §5.3), so the writer lock uses `fs-ext@2.1.1`, a native
+addon (with `nan@2.30.0`) compiled by `node-gyp` at install time. Its install script is the only one approved in
+`package.json` `allowScripts`, pinned to that exact version; npm reports any other version, or any other package
+with an install script, as unreviewed. Building it needs a C/C++ toolchain and Python.
 
 ## Files
 
