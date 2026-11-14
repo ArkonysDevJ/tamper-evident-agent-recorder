@@ -11,4 +11,11 @@ evident, using a SHA-256 hash chain over RFC 8785 canonical JSON and RFC 3161 ti
 - What exists so far: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 - Rules for contributors and agents: [`AGENTS.md`](AGENTS.md).
 
+> **Reading the Blueprint.** `docs/BLUEPRINT.md` uses angle-bracket placeholders such as `<k>` and `<chain_id>`.
+> GitHub's renderer hides some of them. Use the **Raw** view to read the normative text exactly as hashed.
+
 Requires Node.js 24 (see `.nvmrc`).
+
+## License
+
+`AGPL-3.0-or-later`. See [`LICENSE`](LICENSE).
