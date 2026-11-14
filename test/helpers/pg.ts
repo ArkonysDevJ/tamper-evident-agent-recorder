@@ -11,6 +11,7 @@ import pg from 'pg';
 import type { ClientConfig } from 'pg';
 import { initializeChain } from '../../src/chain/initialize.js';
 import type { InitializeOptions } from '../../src/chain/initialize.js';
+import { noAnchorHook } from '../../src/chain/interfaces.js';
 import type { RecoveryClassifier } from '../../src/chain/interfaces.js';
 import { ChainWriter } from '../../src/chain/writer.js';
 import type { WriterOptions } from '../../src/chain/writer.js';
@@ -101,6 +102,9 @@ export function writerOptions(c: TestChain, extra: Partial<WriterOptions> = {}):
     pg: pgConfig,
     profile: 'base',
     classifier: cleanE1ForTests,
+    // Data-core tests never anchor; spec 003 tests pass the automatic hook and test TSAs.
+    anchorHook: noAnchorHook,
+    tsas: [],
     ...extra,
   };
 }
