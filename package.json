@@ -9,10 +9,18 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test \"dist/test/unit/**/*.test.js\"",
+    "test:pg": "tsc && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "fs-ext": "2.1.1",
+    "pg": "8.16.3"
   }
 }
