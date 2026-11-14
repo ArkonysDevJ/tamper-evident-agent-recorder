@@ -12,3 +12,7 @@ evident, using a SHA-256 hash chain over RFC 8785 canonical JSON and RFC 3161 ti
 - Rules for contributors and agents: [`AGENTS.md`](AGENTS.md).
 
 Requires Node.js 24 (see `.nvmrc`).
+
+## License
+
+`AGPL-3.0-or-later`. See [`LICENSE`](LICENSE).
