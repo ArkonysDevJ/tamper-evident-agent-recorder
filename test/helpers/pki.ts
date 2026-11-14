@@ -377,6 +377,16 @@ function essAttr(e: EssSpec, signer: Uint8Array): Uint8Array {
   return attribute(id, sequence(sequence(sequence(...parts))));
 }
 
+/** X.690 §11.6 order: octet strings compared with the shorter one padded with zeros. */
+export function derCompare(a: Uint8Array, b: Uint8Array): number {
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
 export function attribute(id: string, ...values: Uint8Array[]): Uint8Array {
   return sequence(oid(id), set(...values));
 }
@@ -414,6 +424,8 @@ export interface TokenSpec {
   /** Append bytes after the TimeStampResp. */
   readonly trailing?: Uint8Array;
   readonly sidKind?: 'issuerSerial' | 'ski';
+  /** Keep signed attributes in the given order instead of DER order (signature still over the sent bytes). */
+  readonly unsortedAttrs?: boolean;
   readonly ski?: Uint8Array;
 }
 
@@ -429,6 +441,8 @@ export function timeStampResp(t: TokenSpec): Uint8Array {
   if (t.omitMessageDigest !== true) attrs.push(attribute(OID.attrMessageDigest, octetString(t.messageDigest ?? hash(d, t.tst))));
   for (const e of t.ess ?? [{ version: 2 }]) attrs.push(essAttr(e, t.signerCert));
   attrs.push(...(t.extraAttrs ?? []));
+  if (t.unsortedAttrs !== true) attrs.sort(derCompare);
+  else if (attrs.length > 1 && derCompare(attrs[0]!, attrs[1]!) <= 0) attrs.reverse();
   const signedAttrsSet = set(...attrs);
   const sig = new Uint8Array(sign(d, signedAttrsSet, t.signerKey.privateKey));
   if (t.badSignature === true) sig[sig.length - 3]! ^= 0x01;

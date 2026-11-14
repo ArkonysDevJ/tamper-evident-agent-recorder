@@ -20,6 +20,7 @@ import {
   octetString,
   oid,
   seq,
+  setOf,
   x509Time,
 } from '../asn1/types.js';
 import { algorithmId } from './algorithms.js';
@@ -70,7 +71,7 @@ export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 /** Checks the structure of a Name (RDNSequence: SEQUENCE OF non-empty SET OF AttributeTypeAndValue). */
 export function checkName(doc: DerDocument, el: Tlv | undefined, what: string): Uint8Array {
   for (const rdn of seq(doc, el, what)) {
-    const atvs = seq(doc, rdn, `${what}.rdn`, TAG.SET);
+    const atvs = setOf(doc, rdn, `${what}.rdn`);
     if (atvs.length === 0) throw new Asn1Error(`${what}: empty RDN`);
     for (const atv of atvs) {
       const parts = seq(doc, atv, `${what}.atv`);

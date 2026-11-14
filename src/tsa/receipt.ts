@@ -23,6 +23,7 @@ import {
   octetString,
   oid,
   seq,
+  setOf,
 } from '../asn1/types.js';
 import { algorithmId, allowedPublicKey, cmsSignatureScheme, sha2Digest, verifySignature } from '../pki/algorithms.js';
 import type { AlgorithmId } from '../pki/algorithms.js';
@@ -96,10 +97,10 @@ function fail(reason: string): never {
 }
 
 function parseAttributes(doc: DerDocument, el: Tlv): Attribute[] {
-  return seq(doc, el, 'signedAttrs', el.tag).map((a) => {
+  return setOf(doc, el, 'attributes', el.tag).map((a) => {
     const parts = seq(doc, a, 'Attribute');
     if (parts.length !== 2) fail('Attribute: type and values expected');
-    const values = seq(doc, parts[1], 'Attribute.values', TAG.SET);
+    const values = setOf(doc, parts[1], 'Attribute.values');
     if (values.length === 0) fail('Attribute: empty value set');
     return { oid: oid(doc, parts[0], 'Attribute.type'), values };
   });
@@ -182,7 +183,7 @@ function parseStructure(tsr: Uint8Array): ParsedReceipt {
 
   const sd = new Fields(seq(doc, sdWrap[0], 'SignedData'), 'SignedData');
   integer(doc, sd.next(TAG.INTEGER, 'version'), 'SignedData.version');
-  const digestSet = seq(doc, sd.next(TAG.SET, 'digestAlgorithms'), 'digestAlgorithms', TAG.SET);
+  const digestSet = setOf(doc, sd.next(TAG.SET, 'digestAlgorithms'), 'digestAlgorithms');
   if (digestSet.length !== 1) fail('digestAlgorithms must hold exactly one identifier');
   const setDigest = algorithmId(doc, digestSet[0], 'digestAlgorithms[0]');
   const eci = new Fields(seq(doc, sd.next(TAG.SEQUENCE, 'encapContentInfo'), 'encapContentInfo'), 'encapContentInfo');
@@ -198,13 +199,16 @@ function parseStructure(tsr: Uint8Array): ParsedReceipt {
   const certificates: Uint8Array[] = [];
   let otherCertificateChoices = 0;
   if (certsEl !== undefined) {
+    // The only SET OF whose DER order is not enforced: the real DigiCert receipts carry it unsorted.
     for (const c of seq(doc, certsEl, 'certificates', ctx(0, true))) {
       if (c.tag === TAG.SEQUENCE) certificates.push(encodingOf(doc, c));
       else otherCertificateChoices++;
     }
   }
-  const crlsPresent = sd.optional(ctx(1, true)) !== undefined;
-  const signerInfos = seq(doc, sd.next(TAG.SET, 'signerInfos'), 'signerInfos', TAG.SET);
+  const crlsEl = sd.optional(ctx(1, true));
+  if (crlsEl !== undefined) setOf(doc, crlsEl, 'crls', ctx(1, true));
+  const crlsPresent = crlsEl !== undefined;
+  const signerInfos = setOf(doc, sd.next(TAG.SET, 'signerInfos'), 'signerInfos');
   sd.end();
   if (signerInfos.length !== 1) fail('exactly one SignerInfo required');
 
@@ -308,7 +312,11 @@ function refMatches(ref: EssRef, cert: Certificate): boolean {
   });
 }
 
-/** CMS SignedAttributes are signed as their DER SET OF encoding: the [0] tag is replaced by SET. */
+/**
+ * CMS SignedAttributes are signed as their DER SET OF encoding: the [0] tag is
+ * replaced by SET. Structure checks already required DER order, so the received
+ * bytes are that DER encoding.
+ */
 function signedAttributesInput(doc: DerDocument, el: Tlv): Uint8Array {
   const enc = Uint8Array.from(encodingOf(doc, el));
   enc[0] = TAG.SET;

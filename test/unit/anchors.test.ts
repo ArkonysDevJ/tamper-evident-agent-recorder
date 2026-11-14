@@ -18,6 +18,7 @@ import {
   attribute,
   certificate,
   cn,
+  derCompare,
   digestAlg,
   directoryName,
   dnsName,
@@ -273,6 +274,15 @@ test('003 AC-15 signature-and-path', async (t) => {
   await t.test('message-digest is missing', () => SIG(at10((_c, b) => ({ ...b, omitMessageDigest: true }))));
   await t.test('a duplicate signed attribute', () => SIG(at10((_c, b) => ({ ...b, extraAttrs: [attribute(OID.attrContentType, oid(OID.tstInfo))] }))));
   await t.test('no signed attributes', () => SIG(at10((_c, b) => ({ ...b, noSignedAttrs: true }))));
+  await t.test('signed attributes not in DER order, although the signature covers the sent bytes', () =>
+    SIG(at10((_c, b) => ({ ...b, unsortedAttrs: true }))),
+  );
+  await t.test('the certificate set not in DER order is tolerated (as the real DigiCert receipts send it)', () => {
+    const big = certificate({ subject: cn('Big unused certificate with a long name to sort after the signer'), issuer: pki.rootName, subjectKey: key('rsa2048', 17), issuerKey: pki.rootKey, extensions: [ext.bc(true)] });
+    const certs = [pki.signer, big].sort(derCompare).reverse();
+    assert.ok(derCompare(certs[0]!, certs[1]!) > 0, 'the set is really out of DER order');
+    OK(at10((_c, b) => ({ ...b, certificates: certs })));
+  });
   await t.test('no signing-certificate attribute', () => SIG(at10((_c, b) => ({ ...b, ess: [] }))));
   await t.test('legacy ESS (SHA-1 ESSCertID) is accepted', () => OK(at10((_c, b) => ({ ...b, ess: [{ version: 1 }] }))));
   await t.test('ESSCertIDv2 with omitted hashAlgorithm (default SHA-256) is accepted', () => OK(at10((_c, b) => ({ ...b, ess: [{ version: 2, alg: 'omit' }] }))));

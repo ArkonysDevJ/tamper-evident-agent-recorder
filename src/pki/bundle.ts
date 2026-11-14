@@ -8,7 +8,7 @@ import { allowedPublicKey } from './algorithms.js';
 import type { AllowedKey } from './algorithms.js';
 import { KEY_USAGE, parseCertificate } from './certificate.js';
 import type { Certificate } from './certificate.js';
-import { bitSet, highestBit } from '../asn1/types.js';
+import { bitSet } from '../asn1/types.js';
 import { OID } from './oids.js';
 
 export class BundleError extends Error {
@@ -90,16 +90,17 @@ export function parsePemBundle(raw: Uint8Array): Uint8Array[] {
   return blocks;
 }
 
-/** Signer requirements of "Path acceptance": critical EKU of exactly id-kp-timeStamping, and keyUsage limits. */
+/**
+ * Signer requirements of "Path acceptance": a critical extendedKeyUsage
+ * containing only id-kp-timeStamping and, when keyUsage is present, at least
+ * one of digitalSignature or contentCommitment ("only" applies to the EKU).
+ */
 export function meetsSignerRequirements(cert: Certificate): boolean {
   const eku = cert.extendedKeyUsage;
   if (eku === null || !eku.critical) return false;
   if (eku.purposes.length !== 1 || eku.purposes[0] !== OID.kpTimeStamping) return false;
   const ku = cert.keyUsage;
-  if (ku !== null) {
-    const allowed = bitSet(ku, KEY_USAGE.digitalSignature) || bitSet(ku, KEY_USAGE.contentCommitment);
-    if (!allowed || highestBit(ku) > KEY_USAGE.contentCommitment) return false;
-  }
+  if (ku !== null && !bitSet(ku, KEY_USAGE.digitalSignature) && !bitSet(ku, KEY_USAGE.contentCommitment)) return false;
   return true;
 }
 

@@ -45,6 +45,32 @@ export function seq(doc: DerDocument, el: Tlv | undefined, what: string, tag: nu
   return children(doc, expectTag(el, tag, what));
 }
 
+/**
+ * DER order of SET OF (X.690 §11.6): element encodings in ascending order,
+ * compared as octet strings with the shorter one padded with zero octets.
+ */
+export function inDerSetOrder(doc: DerDocument, items: readonly Tlv[]): boolean {
+  for (let i = 1; i < items.length; i++) {
+    const a = doc.bytes.subarray(items[i - 1]!.start, items[i - 1]!.end);
+    const b = doc.bytes.subarray(items[i]!.start, items[i]!.end);
+    const n = Math.max(a.length, b.length);
+    for (let j = 0; j < n; j++) {
+      const x = a[j] ?? 0;
+      const y = b[j] ?? 0;
+      if (x < y) break;
+      if (x > y) return false;
+    }
+  }
+  return true;
+}
+
+/** Children of a SET OF (or an implicitly tagged one), required to be in DER order. */
+export function setOf(doc: DerDocument, el: Tlv | undefined, what: string, tag: number = TAG.SET): Tlv[] {
+  const items = seq(doc, el, what, tag);
+  if (!inDerSetOrder(doc, items)) throw new Asn1Error(`${what}: SET OF not in DER order`);
+  return items;
+}
+
 /** A cursor over the children of a constructed element, for OPTIONAL and DEFAULT fields. */
 export class Fields {
   private i = 0;

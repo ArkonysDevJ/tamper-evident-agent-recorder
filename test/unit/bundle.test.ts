@@ -12,8 +12,14 @@ import { serialize, writeInputs } from '../helpers/verify-files.js';
 import {
   SIGNER_EXTS,
   certificate,
+  CN,
+  O,
   cn,
+  derCompare,
   ext,
+  oid,
+  sequence,
+  tlv,
   key,
   pem,
   testPki,
@@ -98,9 +104,9 @@ function intermediateWith(extensions: ExtSpec[]): Uint8Array {
   return certificate({ subject: pki.intName, issuer: pki.rootName, subjectKey: pki.intKey, issuerKey: pki.rootKey, extensions });
 }
 
-function signerWith(extensions: ExtSpec[], subjectKeyKind?: Parameters<typeof key>[0]): Uint8Array {
+function signerWith(extensions: ExtSpec[], subjectKeyKind?: Parameters<typeof key>[0], subject?: Uint8Array): Uint8Array {
   return certificate({
-    subject: pki.signerName,
+    subject: subject ?? pki.signerName,
     issuer: pki.intName,
     subjectKey: subjectKeyKind === undefined ? pki.signerKey : key(subjectKeyKind, 8),
     issuerKey: pki.intKey,
@@ -157,7 +163,9 @@ test('003 extension vectors (§7): the four allowlisted extensions, critical and
     ['extendedKeyUsage critical with only timeStamping, valid', () => bundleWith({ signer: signerWith([ext.ku([0]), ext.eku([OID.kpTimeStamping], true)]) }), true],
     ['extendedKeyUsage noncritical on the signer', () => bundleWith({ signer: signerWith([ext.ku([0]), ext.eku([OID.kpTimeStamping], false)]) }), false],
     ['extendedKeyUsage with a second purpose', () => bundleWith({ signer: signerWith([ext.ku([0]), ext.eku([OID.kpTimeStamping, '1.3.6.1.5.5.7.3.1'])]) }), false],
-    ['signer keyUsage with keyEncipherment', () => bundleWith({ signer: signerWith([ext.ku([0, 2]), ext.eku([OID.kpTimeStamping])]) }), false],
+    ['signer keyUsage with digitalSignature and keyEncipherment (at least one of the two is enough)', () => bundleWith({ signer: signerWith([ext.ku([0, 2]), ext.eku([OID.kpTimeStamping])]) }), true],
+    ['signer keyUsage with contentCommitment and keyCertSign', () => bundleWith({ signer: signerWith([ext.ku([1, 5]), ext.eku([OID.kpTimeStamping])]) }), true],
+    ['signer keyUsage with keyEncipherment only', () => bundleWith({ signer: signerWith([ext.ku([2]), ext.eku([OID.kpTimeStamping])]) }), false],
     ['signer keyUsage with contentCommitment only', () => bundleWith({ signer: signerWith([ext.ku([1]), ext.eku([OID.kpTimeStamping])]) }), true],
     ['subjectAltName critical, valid', () => bundleWith({ signer: signerWith([...SIGNER_EXTS(), ext.san([Buffer.from('820b6578616d706c652e6f7267', 'hex')], true)]) }), true],
     ['subjectAltName noncritical, valid', () => bundleWith({ signer: signerWith([...SIGNER_EXTS(), ext.san([Buffer.from('820b6578616d706c652e6f7267', 'hex')], false)]) }), true],
@@ -166,6 +174,14 @@ test('003 extension vectors (§7): the four allowlisted extensions, critical and
     ['another noncritical extension is ignored after valid DER decoding', () => bundleWith({ signer: signerWith([...SIGNER_EXTS(), ext.raw('1.2.3.4.5', Buffer.from('not DER'))]) }), true],
     ['an extension with critical FALSE encoded explicitly', () => bundleWith({ signer: signerWith([...SIGNER_EXTS(), { oid: '1.2.3.4.5', explicitFalse: true, value: Buffer.from('0500', 'hex') }]) }), false],
   ];
+  // A multi-valued RDN: SET OF AttributeTypeAndValue, whose DER order is enforced in Names.
+  const atv = (type: string, v: string) => sequence(oid(type), tlv(0x0c, Buffer.from(v, 'utf8')));
+  const rdnName = (first: Uint8Array, second: Uint8Array) => sequence(tlv(0x31, Buffer.concat([first, second])));
+  const sorted = [atv(O, 'TEAR test'), atv(CN, 'Multi')].sort(derCompare);
+  cases.push(
+    ['a multi-valued RDN in DER order', () => bundleWith({ signer: signerWith(SIGNER_EXTS(), undefined, rdnName(sorted[0]!, sorted[1]!)) }), true],
+    ['a multi-valued RDN not in DER order', () => bundleWith({ signer: signerWith(SIGNER_EXTS(), undefined, rdnName(sorted[1]!, sorted[0]!)) }), false],
+  );
   for (const [label, bytes, loads] of cases) {
     await t.test(`${label}: ${loads ? 'loads' : 'INPUT_UNAVAILABLE 0'}`, () => (loads ? assertLoads(bytes()) : assertUnavailable(bytes())));
   }
