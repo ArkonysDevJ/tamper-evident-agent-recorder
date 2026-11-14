@@ -1,0 +1,5 @@
+# Hash-pinned files: their bytes are fixed by SHA-256 (docs/BLUEPRINT.md,
+# certs/tsa_roots.pem). Always LF, never converted on checkout, and treated as
+# opaque for diff and merge so no tool rewrites them.
+docs/BLUEPRINT.md    eol=lf -diff -merge
+certs/tsa_roots.pem  eol=lf -diff -merge
