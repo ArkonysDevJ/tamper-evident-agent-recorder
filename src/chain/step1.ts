@@ -11,8 +11,15 @@ import { CHAIN_VERSION, ZERO_HASH } from './ids.js';
 import { checkRowSchema } from './schema.js';
 import type { Block } from './schema.js';
 
-/** A decoded row, or a row whose bytes could not be decoded as one JSON value. */
-export type RowInput = { kind: 'json'; value: JsonValue } | { kind: 'malformed' };
+/**
+ * A decoded row; a row whose bytes could not be decoded as one JSON value
+ * (including an empty physical row); or a nonempty last row without its
+ * required LF, with its decoded value when it has one (§6 Step 1).
+ */
+export type RowInput =
+  | { kind: 'json'; value: JsonValue }
+  | { kind: 'malformed' }
+  | { kind: 'unterminated'; value: JsonValue | null };
 
 export interface Step1Context {
   /** SHA-256 of the --tsa-ca-bundle bytes (Step 1.3). */
@@ -92,6 +99,13 @@ export class Step1Checker {
 
     // 1.1 JSON / outer-envelope schema.
     if (row.kind === 'malformed') return atGenesis ? fail('GENESIS_INVALID', 0) : fail('JCS_SCHEMA_INVALID', index);
+    if (row.kind === 'unterminated') {
+      // A schema failure at that row, with the Step 1.1 parameter rules.
+      if (atGenesis) return fail('GENESIS_INVALID', 0);
+      const s = row.value === null ? null : checkRowSchema(row.value);
+      const seq = s === null ? null : s.ok ? s.block.seq : s.seq;
+      return fail('JCS_SCHEMA_INVALID', seq ?? index);
+    }
     const schema = checkRowSchema(row.value);
     if (!schema.ok) return atGenesis ? fail('GENESIS_INVALID', 0) : fail('JCS_SCHEMA_INVALID', schema.seq ?? index);
     const { block, entryHash, eventType } = schema;

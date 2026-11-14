@@ -20,7 +20,9 @@ result, including the declared limits.
 ## 4. Acceptance criteria
 
 The criteria are the §7 rows as written there. Mutations act on copies of the exported log and namespace
-(§7, adversary mechanics). Exit-0 cases match the full §6b output, with `ANCHOR_TIME` lines derived from the
+(§7, adversary mechanics). Every mutation must change bytes of a block or of an `entry_hash`, never only
+whitespace in the row envelope: that whitespace does not change the verification result (spec 002,
+implementation choice; spec 007, known limits). Exit-0 cases match the full §6b output, with `ANCHOR_TIME` lines derived from the
 frozen or explicitly replaced receipt bytes.
 
 | ID | §7 row | Adversary | Expected (§7) | Test |

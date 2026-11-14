@@ -8,11 +8,14 @@
   "engines": {
     "node": ">=24 <25"
   },
+  "bin": {
+    "tear-verify": "dist/src/cli/tear-verify.js"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('node:fs').chmodSync('dist/src/cli/tear-verify.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
-    "test": "tsc && node --test \"dist/test/unit/**/*.test.js\"",
-    "test:pg": "tsc && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\""
+    "test": "npm run build && node --test \"dist/test/unit/**/*.test.js\"",
+    "test:pg": "npm run build && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",

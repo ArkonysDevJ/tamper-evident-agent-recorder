@@ -28,6 +28,8 @@ Rules for any agent or person working in this repository.
 - A spec is done when every acceptance criterion has a passing test with the name the spec gives it.
 - After each spec, update `ARCHITECTURE.md` with the modules and files that now exist. Describe what exists,
   not what is planned.
+- Every source file starts with `// SPDX-License-Identifier: AGPL-3.0-or-later` on line 1. Executable entry
+  points (the `bin` targets) put `#!/usr/bin/env node` on line 1 and the SPDX line on line 2.
 - No secrets in the repository. The HMAC pepper (Blueprint §4.4, §5.3a) is supplied through the
   environment variable `TEAR_HMAC_PEPPER` and is never written to a file, a log or the database. Only its
   public identifier, `pepper_id`, is recorded. The value is lowercase hex of at least 64 characters
@@ -44,7 +46,7 @@ Rules for any agent or person working in this repository.
 | `npm test` | Build and run the tests that need no PostgreSQL (`test/unit`); this is what CI runs | now |
 | `npm run test:pg` | Build and run the tests that need a local PostgreSQL (`test/pg`). Connection from the standard `PGHOST`, `PGDATABASE`, `PGUSER` variables; defaults: socket `/var/run/postgresql`, database `tear_test` | now |
 | `npm run test:tamper` | Run the tamper battery (M1 + X1 + X2, Blueprint §7) | spec 004 |
-| `tear-verify --log <events.jsonl> --checkpoints <dir>/<chain_id>/ --tsa-ca-bundle certs/tsa_roots.pem` | Verify an exported log offline (Blueprint §6) | spec 002 |
+| `npm exec -- tear-verify --log <events.jsonl> --checkpoints <dir>/<chain_id>/ --tsa-ca-bundle certs/tsa_roots.pem` | Verify an exported log offline (Blueprint §6); logs with anchors need spec 003 | now (after `npm run build`) |
 
 When you run tests, report the summary (passed, failed, skipped) and each failure. Do not paste the full
 output. Only report counts from a run you actually made.
