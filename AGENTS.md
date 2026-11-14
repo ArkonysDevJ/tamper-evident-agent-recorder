@@ -30,7 +30,9 @@ Rules for any agent or person working in this repository.
   not what is planned.
 - No secrets in the repository. The HMAC pepper (Blueprint §4.4, §5.3a) is supplied through the
   environment variable `TEAR_HMAC_PEPPER` and is never written to a file, a log or the database. Only its
-  public identifier, `pepper_id`, is recorded.
+  public identifier, `pepper_id`, is recorded. The value is lowercase hex of at least 64 characters
+  (32 bytes); the writer decodes it to bytes and rejects any other format (implementation choice, not
+  normative; see spec 005).
 - Work order: 001 → 002 → 008 → 003 → 004 → 006 → 005 → 007. Each spec lists its dependencies.
 
 ## Commands
