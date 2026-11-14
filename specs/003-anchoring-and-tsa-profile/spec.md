@@ -70,15 +70,18 @@ the work package that implements them.
   own module. Every hash, signature check and key load uses `node:crypto`. It is tested with negative vectors for
   each rejection rule and checked against `openssl` on every real receipt and certificate
   (`npm run test:local`). It is a trust surface of its own, with no external review.
-- **SET OF ordering:** the DER ordering of SET OF elements is not enforced. The certificate set of the real
-  DigiCert receipts is not in DER order, and signed attributes are verified over their received bytes.
-- **Request encoding:** the SHA-256 AlgorithmIdentifier in the TimeStampReq has absent parameters (RFC 5754 §2).
-  Both TSAs accepted it.
+- **SET OF ordering:** DER order is enforced for every SET OF (signed and unsigned attributes, attribute values,
+  `digestAlgorithms`, `signerInfos`, `crls`, and RDNs in Names) except the SignedData certificate set, which the
+  real DigiCert receipts carry out of DER order. Because signed attributes must be in DER order, the received
+  bytes are their DER encoding, over which the signature is verified as §6a requires.
+- **Request encoding:** the SHA-256 AlgorithmIdentifier in the TimeStampReq has absent parameters (RFC 5754 §2),
+  since §5.7 step 1 does not fix the form. Both TSAs accepted it.
 - **`anchor.block` placement (§10):** Step 2.1 checks `block` only as a JSON object with `seq == k` whose canonical
   hash is `entry_hash`. Its full row schema is checked at Step 2.6, through byte equality with log row k, which
   already passed Step 1.
 - **Root `pathLenConstraint` (§10):** a root's own value is not applied; intermediates' values are.
-- **Signer keyUsage:** when present, it must set digitalSignature or contentCommitment and no other bit.
+- **Signer keyUsage:** read literally from §6a: when present, it must set at least one of digitalSignature or
+  contentCommitment; other bits are allowed ("only" applies to the extendedKeyUsage).
 - **ESS binding:** the signer is the embedded certificate that every present ESS reference (v1 and v2) identifies
   by its first certificate hash. `issuerSerial`, when present, must carry the signer serial and a directoryName
   equal to the signer's issuer Name. An explicitly encoded SHA-256 `ESSCertIDv2.hashAlgorithm` is accepted, as §6a
