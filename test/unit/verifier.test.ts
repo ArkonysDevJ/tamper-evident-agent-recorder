@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -291,6 +292,23 @@ test('002 AC-16 unanchored-success', async (t) => {
   });
   await t.test('a genesis-only log', () => {
     assert.equal(verifyRows(chain([])), 'VALID_UNANCHORED 0..0\nMAX_ANCHOR_GAP 0\nANCHORED_CHECKPOINT_FAILURES 0\n');
+  });
+});
+
+test('tear-verify bin', async (t) => {
+  await t.test('package.json exposes the built CLI, with the shebang on line 1 and SPDX on line 2', () => {
+    const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { bin?: Record<string, string> };
+    assert.equal(pkg.bin?.['tear-verify'], 'dist/src/cli/tear-verify.js');
+    const [first, second] = fs.readFileSync(pkg.bin['tear-verify'], 'utf8').split('\n');
+    assert.equal(first, '#!/usr/bin/env node');
+    assert.equal(second, '// SPDX-License-Identifier: AGPL-3.0-or-later');
+  });
+  await t.test('npm exec -- tear-verify runs the verifier', () => {
+    const rows = chain();
+    const inputs = writeInputs(chainIdOf(rows), serialize(rows));
+    const r = spawnSync('npm', ['exec', '--offline', '--', 'tear-verify', ...cliArgs(inputs)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, OK3);
   });
 });
 

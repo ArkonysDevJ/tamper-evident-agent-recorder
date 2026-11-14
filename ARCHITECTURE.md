@@ -96,7 +96,7 @@ tear-verify (src/cli/tear-verify.ts) → parseArgs → verifyOffline
 
 | Module | What it does | Blueprint |
 | --- | --- | --- |
-| `src/cli/tear-verify.ts` | Command entry point; writes stdout/stderr and sets the exit code | §6, §6b |
+| `src/cli/tear-verify.ts` | Command entry point and `bin` target (shebang on line 1); writes stdout/stderr and sets the exit code | §6, §6b |
 | `src/verify/args.ts` | The three options, each exactly once | §6 |
 | `src/verify/verify.ts` | Input loading order, Step 1 over the log, extensions, Step 3 | §6, §6b |
 | `src/verify/framing.ts` | JSONL rows: final LF, empty rows, unterminated last row, strict UTF-8, BOM | §6 Step 1 |

@@ -1,6 +1,7 @@
+#!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // tear-verify command line (Blueprint §6):
-//   node dist/src/cli/tear-verify.js --log events.jsonl \
+//   tear-verify --log events.jsonl \
 //     --checkpoints ./tsr_receipts/<chain_id>/ --tsa-ca-bundle ./certs/tsa_roots.pem
 
 import { parseArgs } from '../verify/args.js';

@@ -22,13 +22,15 @@ Requires Node.js 24 (see `.nvmrc`).
 
 ```sh
 npm ci && npm run build
-node dist/src/cli/tear-verify.js \
+npm exec -- tear-verify \
   --log events.jsonl \
   --checkpoints ./tsr_receipts/<chain_id>/ \
   --tsa-ca-bundle ./certs/tsa_roots.pem
 ```
 
-The verifier reads only those three inputs: no database, no network. The directory name must be the chain id.
+`tear-verify` is the package's `bin` entry (`dist/src/cli/tear-verify.js`); `node dist/src/cli/tear-verify.js`
+works the same. The verifier reads only those three inputs: no database, no network. The directory name must be
+the chain id.
 Output and exit codes follow Blueprint §6b:
 
 | Exit | stdout |
