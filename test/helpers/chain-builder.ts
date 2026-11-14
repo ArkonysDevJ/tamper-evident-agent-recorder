@@ -46,12 +46,15 @@ export function envelope(block: JsonObject, entryHash: string): JsonObject {
 }
 
 /** Builds rows 0..payloads.length with valid links, hashes and increasing timestamps. */
-export function buildChain(payloads: JsonObject[], opts: { chainId?: string; startMs?: number } = {}): BuiltRow[] {
+export function buildChain(
+  payloads: JsonObject[],
+  opts: { chainId?: string; startMs?: number; bundleSha256?: string } = {},
+): BuiltRow[] {
   const chainId = opts.chainId ?? randomUUID();
   const start = opts.startMs ?? Date.UTC(2026, 10, 13, 12, 0, 0);
   const rows: BuiltRow[] = [];
   let prev = ZERO_HASH;
-  [genesisPayload(), ...payloads].forEach((payload, seq) => {
+  [genesisPayload(opts.bundleSha256), ...payloads].forEach((payload, seq) => {
     const block = obj({ chain_id: chainId, seq, ts: formatTimestamp(start + seq * 100), prev_hash: prev, payload });
     const entry = entryHashOf(block);
     rows.push({ block, entry_hash: entry });
