@@ -15,7 +15,9 @@
     "build": "tsc && node -e \"require('node:fs').chmodSync('dist/src/cli/tear-verify.js', 0o755)\"",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test \"dist/test/unit/**/*.test.js\"",
-    "test:pg": "npm run build && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\""
+    "test:pg": "npm run build && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\"",
+    "fixture:build": "npm run build && node dist/test/fixture-tools/build-frozen-fixture.js",
+    "test:local": "npm run build && node --test \"dist/test/local/**/*.test.js\""
   },
   "devDependencies": {
     "@types/node": "24.19.2",
