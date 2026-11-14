@@ -5,8 +5,8 @@ that proves it.
 
 ## 1. Objective
 
-Build `tear-verify` up to Step 1 (local chain) and its canonical output, so that an exported log with no
-anchor packages is verified end to end.
+Build `tear-verify` up to Step 1 (local chain) and its canonical output, on top of the Step 1 core from spec
+001, so that an exported log with no anchor packages is verified end to end.
 
 ## 2. Blueprint sections
 
@@ -38,7 +38,8 @@ anchor packages is verified end to end.
 | AC-14 | Valid surrogate pairs are accepted; lone surrogates fail with the location-specific schema error. | §4.3, §7 | `002 AC-14 unicode` |
 | AC-15 | On failure stdout is exactly `<CODE> <parameter>`, exit 1, empty stderr. On success the §6b groups appear in order with canonical integers and ranges; outputs are compared byte for byte. | §6b | `002 AC-15 output-format` |
 | AC-16 | A valid log with no packages exits 0 with `VALID_UNANCHORED 0..<seq_final>`, one `INCOMPLETE_EXECUTION` line per unmatched `tool_call`, `MAX_ANCHOR_GAP 0` and `ANCHORED_CHECKPOINT_FAILURES 0`. | §6 Step 3, §6b | `002 AC-16 unanchored-success` |
+| AC-17 | An export produced by spec 001 passes full offline framing; a physically malformed copy of it fails with its Step 1 framing diagnostic. | §5.3, §7 (SQL versus JSONL) | `002 AC-17 export-framing` |
 
 ## 5. Dependencies
 
-Spec 001 (record format, JCS and hashing).
+Spec 001 (record format, JCS, hashing, Step 1 core, export).

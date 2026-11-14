@@ -33,12 +33,13 @@ The design itself is in `docs/BLUEPRINT.md`.
 
 | Component | Blueprint | Spec | Status |
 | --- | --- | --- | --- |
-| Hash chain: record format, hashing, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a | 001 | not implemented |
-| Verifier: local chain check and output | §6 Step 1, §6b | 002 | not implemented |
+| Hash chain: record format, hashing, Step 1 core, SQL storage, locks, initialization, append, export | §4, §5.1–§5.4, §5.3a, §6 Step 1 | 001 | not implemented |
+| Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | not implemented |
+| Durable file primitives | §5.5 | 008 | not implemented |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | not implemented |
 | Tamper battery | §7 | 004 | not implemented |
 | Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | not implemented |
-| Recovery, close, evidence package | §5.5, §5.6, §5.8, §5.3 | 006 | not implemented |
+| Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
 | Final report | §8, §9 | 007 | not written |
 
 ## Files
