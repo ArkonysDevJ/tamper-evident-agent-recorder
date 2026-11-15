@@ -420,6 +420,8 @@ export interface TokenSpec {
   readonly detached?: boolean;
   readonly eContentType?: string;
   readonly status?: bigint;
+  /** Extra PKIStatusInfo fields after the status (statusString, failInfo), as raw encodings. */
+  readonly statusExtra?: Uint8Array[];
   readonly omitToken?: boolean;
   /** Append bytes after the TimeStampResp. */
   readonly trailing?: Uint8Array;
@@ -467,7 +469,7 @@ export function timeStampResp(t: TokenSpec): Uint8Array {
     set(signerInfo, ...(t.twoSigners === true ? [signerInfo] : [])),
   );
   const token = sequence(oid(OID.signedData), tlv(0xa0, signedData));
-  const resp = sequence(sequence(integer(t.status ?? 0n)), ...(t.omitToken === true ? [] : [token]));
+  const resp = sequence(sequence(integer(t.status ?? 0n), ...(t.statusExtra ?? [])), ...(t.omitToken === true ? [] : [token]));
   return t.trailing === undefined ? resp : concat([resp, t.trailing]);
 }
 
