@@ -27,6 +27,7 @@ if (mode === 'hold') {
         onApplicationCommit: async (ctx) => {
           process.stdout.write('ready\n');
           await ctx.query(SLEEP);
+          return null;
         },
       },
     }),

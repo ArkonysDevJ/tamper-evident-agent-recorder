@@ -214,6 +214,7 @@ test('001 AC-22 durable-append', async (t) => {
         onApplicationCommit: async () => {
           await admin('SELECT pg_terminate_backend($1)', [pid]);
           await new Promise((r) => setTimeout(r, 300));
+          return null;
         },
       },
     });
@@ -270,6 +271,7 @@ test('001 AC-28 anchor-hook', async (t) => {
           assert.equal(inside[0]?.n, 1, 'row visible inside the transaction');
           const outside = await admin<{ n: number }>('SELECT count(*)::int AS n FROM tear_events WHERE chain_id = $1 AND seq = $2', [chainId, ctx.seq]);
           assert.equal(outside[0]?.n, 0, 'row not yet committed');
+          return null;
         },
       },
     });
@@ -278,7 +280,7 @@ test('001 AC-28 anchor-hook', async (t) => {
     assert.deepEqual(calls, [1, 2, 3]);
     await writer.close();
   });
-  await t.test('the default hook does nothing: no pending anchor at seq 10', async () => {
+  await t.test('noAnchorHook (the data-core test default) sets no pending anchor at seq 10', async () => {
     const { chain, writer } = await initializedWriter();
     for (let i = 1; i <= 10; i++) await writer.append(pausePayload(i));
     const [state] = await admin('SELECT pending_anchor_seq FROM tear_chain_state WHERE chain_id = $1', [chain.chainId]);

@@ -1,0 +1,175 @@
+{
+  "description": "Frozen M1 fixture (Blueprint §7). Built once with real receipts; never regenerated.",
+  "built_at": "2026-11-14T23:31:07.105Z",
+  "chain_id": "890c1d36-1e29-45ac-8efc-bdc18c2a34c1",
+  "tsa_ca_bundle_sha256": "10335e1e5d816b98665e5f4cb21ed92dd0637d2957658e0c34d55c365240ccfd",
+  "max_auto_anchor_seq": 40,
+  "rows": 51,
+  "files": {
+    "events.jsonl": "d3734baf7ec2372e15a43a7ead1b4b52e360a0bcddfacef830319db990cf819e",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/10.tsr": "9be2eadc2f19e4f4e6b5ff0c570b68a5e29b569ef9ccaaa6d101437bf311aa6e",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/10.anchor.json": "9edf709cb785f7d3658083664a39be26a860eb2a87e201a2d73d9ca99e19af15",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/20.tsr": "858a66fa52406960c9949dc451f107894e4e41c2d32f89ebaf1639a18d2604d5",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/20.anchor.json": "73d33ebf5f696a75da304a997900aa06308be3fd7bb551176b521c2c84d5eb85",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/30.tsr": "93af7eeedbb72cfe335c481ca73c740d2b1ab8fedc2b7e868d2735779494f375",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/30.anchor.json": "50564a691949c6748a92f01e17f2512ab008208819be7c23de33a1508f1078b7",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/40.tsr": "92305760bc0f78b0fe5eb0f831cf84644532ef6933f6c51ac39e9288f7de091d",
+    "890c1d36-1e29-45ac-8efc-bdc18c2a34c1/40.anchor.json": "6992d85f277255fbd11a182d6dfb31ade7086ba29def12fd233e64ee6d1b4e84"
+  },
+  "receipts": [
+    {
+      "k": 10,
+      "tsa": "freetsa",
+      "attempts": [
+        {
+          "tsa": "freetsa",
+          "outcome": "accepted",
+          "detail": "20261114233059Z"
+        }
+      ],
+      "tsr_sha256": "9be2eadc2f19e4f4e6b5ff0c570b68a5e29b569ef9ccaaa6d101437bf311aa6e",
+      "tsr_bytes": 4640,
+      "serial_hex": "a061bf7",
+      "gen_time": "20261114233059Z",
+      "accuracy": "absent",
+      "policy": "1.2.3.4.1",
+      "ordering": true,
+      "nonce_hex": "7fd0fc7826f9adda",
+      "tsa_field": "present",
+      "tst_extensions": [],
+      "cms_digest": "sha512",
+      "signed_attributes": [
+        "content-type",
+        "signing-time",
+        "signing-certificate",
+        "message-digest"
+      ],
+      "optional_signed_data_fields": {
+        "embedded_certificates": 2,
+        "other_certificate_choices": 0,
+        "crls": false,
+        "unsigned_attributes": false,
+        "sid": "issuerSerial"
+      }
+    },
+    {
+      "k": 20,
+      "tsa": "digicert",
+      "attempts": [
+        {
+          "tsa": "freetsa",
+          "outcome": "rejected",
+          "detail": "http_status 503 (forced locally, not sent)"
+        },
+        {
+          "tsa": "digicert",
+          "outcome": "accepted",
+          "detail": "20261114233101Z"
+        }
+      ],
+      "tsr_sha256": "858a66fa52406960c9949dc451f107894e4e41c2d32f89ebaf1639a18d2604d5",
+      "tsr_bytes": 6007,
+      "serial_hex": "ed74864342423e62b100a616a39d93fb",
+      "gen_time": "20261114233101Z",
+      "accuracy": "absent",
+      "policy": "2.16.840.1.114412.7.1",
+      "ordering": false,
+      "nonce_hex": "5f0b6a452d8b0d30",
+      "tsa_field": "absent",
+      "tst_extensions": [],
+      "cms_digest": "sha256",
+      "signed_attributes": [
+        "content-type",
+        "signing-time",
+        "signing-certificate",
+        "message-digest",
+        "signing-certificate-v2"
+      ],
+      "optional_signed_data_fields": {
+        "embedded_certificates": 3,
+        "other_certificate_choices": 0,
+        "crls": false,
+        "unsigned_attributes": false,
+        "sid": "issuerSerial"
+      }
+    },
+    {
+      "k": 30,
+      "tsa": "freetsa",
+      "attempts": [
+        {
+          "tsa": "freetsa",
+          "outcome": "accepted",
+          "detail": "20261114233103Z"
+        }
+      ],
+      "tsr_sha256": "93af7eeedbb72cfe335c481ca73c740d2b1ab8fedc2b7e868d2735779494f375",
+      "tsr_bytes": 4641,
+      "serial_hex": "a061c11",
+      "gen_time": "20261114233103Z",
+      "accuracy": "absent",
+      "policy": "1.2.3.4.1",
+      "ordering": true,
+      "nonce_hex": "61b3bd07233d3a3c",
+      "tsa_field": "present",
+      "tst_extensions": [],
+      "cms_digest": "sha512",
+      "signed_attributes": [
+        "content-type",
+        "signing-time",
+        "signing-certificate",
+        "message-digest"
+      ],
+      "optional_signed_data_fields": {
+        "embedded_certificates": 2,
+        "other_certificate_choices": 0,
+        "crls": false,
+        "unsigned_attributes": false,
+        "sid": "issuerSerial"
+      }
+    },
+    {
+      "k": 40,
+      "tsa": "digicert",
+      "attempts": [
+        {
+          "tsa": "freetsa",
+          "outcome": "rejected",
+          "detail": "http_status 503 (forced locally, not sent)"
+        },
+        {
+          "tsa": "digicert",
+          "outcome": "accepted",
+          "detail": "20261114233104Z"
+        }
+      ],
+      "tsr_sha256": "92305760bc0f78b0fe5eb0f831cf84644532ef6933f6c51ac39e9288f7de091d",
+      "tsr_bytes": 6007,
+      "serial_hex": "e3d17d4cb0d58724b161b085e769442b",
+      "gen_time": "20261114233104Z",
+      "accuracy": "absent",
+      "policy": "2.16.840.1.114412.7.1",
+      "ordering": false,
+      "nonce_hex": "78fdc0d27daf2bb1",
+      "tsa_field": "absent",
+      "tst_extensions": [],
+      "cms_digest": "sha256",
+      "signed_attributes": [
+        "content-type",
+        "signing-time",
+        "signing-certificate",
+        "message-digest",
+        "signing-certificate-v2"
+      ],
+      "optional_signed_data_fields": {
+        "embedded_certificates": 3,
+        "other_certificate_choices": 0,
+        "crls": false,
+        "unsigned_attributes": false,
+        "sid": "issuerSerial"
+      }
+    }
+  ],
+  "expected_stdout": "VERIFIED_ANCHORED 0..40\nVALID_UNANCHORED 41..50\nMAX_ANCHOR_GAP 10\nANCHORED_CHECKPOINT_FAILURES 0\nANCHOR_TIME 10 20261114233059Z ACCURACY_NS unspecified LATEST_BOUND_NS unspecified\nANCHOR_TIME 20 20261114233101Z ACCURACY_NS unspecified LATEST_BOUND_NS unspecified\nANCHOR_TIME 30 20261114233103Z ACCURACY_NS unspecified LATEST_BOUND_NS unspecified\nANCHOR_TIME 40 20261114233104Z ACCURACY_NS unspecified LATEST_BOUND_NS unspecified\n",
+  "expected_exit_code": 0
+}

@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Chain writer: start-up under exclusion and application appends with writer
-// admission and a confirmed durable COMMIT (Blueprint §5.3, §5.4, §4.2).
-// Start-up reconciliation (§5.6) enters through the RecoveryClassifier
-// interface; only a clean E1 view is accepted until that is implemented.
+// Chain writer: start-up under exclusion, application appends with writer
+// admission and a confirmed durable COMMIT (Blueprint §5.3, §5.4, §4.2), and
+// automatic RFC 3161 anchoring (§5.7). Start-up reconciliation (§5.6) enters
+// through the RecoveryClassifier interface; only a clean E1 view is accepted
+// until that is implemented.
 
 import type { ClientConfig } from 'pg';
+import { runAnchorFlow } from '../anchor/flow.js';
+import type { AnchorOutcome } from '../anchor/flow.js';
+import { autoAnchorHook } from '../anchor/trigger.js';
+import { DurableNamespace } from '../fs/durable.js';
+import type { DurableFsOps } from '../fs/durable.js';
+import { loadBundle } from '../pki/bundle.js';
+import type { LoadedBundle } from '../pki/bundle.js';
+import { retainedTsas } from '../tsa/transport.js';
+import type { TsaEndpoint } from '../tsa/transport.js';
 import { bundleSha256, entryHashOf } from '../crypto/digests.js';
 import { TearError } from '../errors.js';
 import { inventoryNamespace } from '../fs/inventory.js';
@@ -19,8 +29,8 @@ import { acquireExclusion, releaseExclusion } from './exclusion.js';
 import type { Exclusion } from './exclusion.js';
 import { ZERO_HASH } from './ids.js';
 import { INSERT_EVENT_SQL } from './initialize.js';
-import { noAnchorHook, notImplementedClassifier } from './interfaces.js';
-import type { AnchorHook, RecoveryClassifier } from './interfaces.js';
+import { notImplementedClassifier } from './interfaces.js';
+import type { AnchorHook, PendingAnchor, RecoveryClassifier } from './interfaces.js';
 import type { CutProfile } from './profile.js';
 import { isApplicationEventType } from './schema.js';
 import type { Block } from './schema.js';
@@ -34,17 +44,36 @@ export interface WriterOptions {
   readonly pg: ClientConfig;
   readonly profile: CutProfile;
   readonly classifier?: RecoveryClassifier;
+  /** Default: the automatic trigger of §5.7 with maxAutoAnchorSeq. */
   readonly anchorHook?: AnchorHook;
+  /** max_auto_anchor_seq (§5.7): Infinity in production. */
+  readonly maxAutoAnchorSeq?: number;
+  /** Retained TSAs in §5.7 order. Default: FreeTSA, then DigiCert. */
+  readonly tsas?: readonly TsaEndpoint[];
   /** Wall clock in milliseconds; injectable to test clock steps (§4.2). */
   readonly clock?: () => number;
   readonly statfsType?: StatfsType;
+  /** Test seam for namespace fault injection (§5.5). */
+  readonly fsOps?: DurableFsOps;
+  /**
+   * Last step of drain-and-exit (§5.3), after already-started mutations settled
+   * and writerConn and flock were released. Default: exit the process with code 70.
+   */
+  readonly exit?: (cause: unknown) => void;
 }
 
 export interface AppendResult {
   readonly seq: number;
   readonly entryHash: string;
   readonly ts: string;
+  /** Set when this append triggered an anchor; the append resolves only after it settled. */
+  readonly anchor?: AnchorOutcome;
 }
+
+const defaultExit = (cause: unknown): void => {
+  process.stderr.write(`tear writer: drain-and-exit: ${cause instanceof Error ? cause.message : String(cause)}\n`);
+  process.exit(70);
+};
 
 /** Writer admission failure (§5.4): carries the Step 1 diagnostic the verifier would emit. */
 export class EventRejectedError extends TearError {
@@ -58,17 +87,52 @@ export class EventRejectedError extends TearError {
 export class ChainWriter {
   private readonly queue = new SerialQueue();
   private sealed: boolean;
+  private readonly files: DurableNamespace;
+  private fatalStarted = false;
+  private released = false;
 
   private constructor(
     private readonly ex: Exclusion,
     private readonly checker: Step1Checker,
     private readonly opts: WriterOptions,
+    private readonly bundle: LoadedBundle,
     chainClosed: boolean,
   ) {
     this.sealed = chainClosed;
+    this.files = new DurableNamespace(ex.nsPath, ex.conn, {
+      ...(opts.fsOps !== undefined ? { fsOps: opts.fsOps } : {}),
+      onFatal: (cause) => void this.exitAfterDrain(cause),
+    });
+  }
+
+  /** Starts drain-and-exit once: invalidate, let started file mutations settle, release, exit. */
+  private fatal(cause: unknown): void {
+    if (this.fatalStarted) return;
+    this.fatalStarted = true;
+    this.ex.conn.invalidate();
+    if (this.files.failed) return; // DurableNamespace calls onFatal itself after draining.
+    void this.files.drain().then(() => this.exitAfterDrain(cause));
+  }
+
+  private async exitAfterDrain(cause: unknown): Promise<void> {
+    this.fatalStarted = true;
+    await this.release();
+    (this.opts.exit ?? defaultExit)(cause);
+  }
+
+  private async release(): Promise<void> {
+    if (this.released) return;
+    this.released = true;
+    await releaseExclusion(this.ex);
   }
 
   static async open(opts: WriterOptions): Promise<ChainWriter> {
+    let bundle: LoadedBundle;
+    try {
+      bundle = loadBundle(opts.bundleBytes);
+    } catch (err) {
+      throw new TearError('TSA_BUNDLE_UNLOADABLE', (err as Error).message);
+    }
     const ex = await acquireExclusion(opts);
     try {
       const loaded = await loadChain(ex.conn, opts.chainId);
@@ -103,7 +167,7 @@ export class ChainWriter {
       // Directory durability barrier before accepting traffic (§5.6).
       if (ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
       fsyncDirectory(ex.nsPath);
-      return new ChainWriter(ex, checker, opts, state.chainClosed);
+      return new ChainWriter(ex, checker, opts, bundle, state.chainClosed);
     } catch (err) {
       await releaseExclusion(ex);
       throw err;
@@ -165,8 +229,9 @@ export class ChainWriter {
     const rejection = this.checker.check({ kind: 'json', value: envelope });
     if (rejection !== null) throw new EventRejectedError(rejection);
 
-    const hook = this.opts.anchorHook ?? noAnchorHook;
+    const hook = this.opts.anchorHook ?? autoAnchorHook(this.opts.maxAutoAnchorSeq);
     const conn = this.ex.conn;
+    const hooked: { pending: PendingAnchor | null } = { pending: null };
     const outcome = await conn.mutate(async () => {
       await conn.query(INSERT_EVENT_SQL, [
         block.chain_id,
@@ -177,7 +242,7 @@ export class ChainWriter {
         canonicalize(block),
         entryHash,
       ]);
-      await hook.onApplicationCommit({
+      hooked.pending = await hook.onApplicationCommit({
         chainId: block.chain_id,
         seq: block.seq,
         entryHash,
@@ -195,12 +260,42 @@ export class ChainWriter {
       conn.invalidate();
       throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'committed row failed Step 1');
     }
-    return { seq: block.seq, entryHash, ts: block.ts };
+    const result = { seq: block.seq, entryHash, ts: block.ts };
+    const pending = hooked.pending;
+    if (pending === null) return result;
+    // The pending anchor is resolved in this queue slot, before any other append or close (§5.3, §5.7).
+    // Implementation choice: if the flow aborts, this append rejects although row k is committed;
+    // the caller treats it as unconfirmed (the tool is not run, nothing is delivered).
+    try {
+      const anchor = await runAnchorFlow(
+        {
+          chainId: this.opts.chainId,
+          conn,
+          files: this.files,
+          checker: this.checker,
+          bundle: this.bundle,
+          tsas: this.opts.tsas ?? retainedTsas(),
+          clock: this.opts.clock ?? Date.now,
+          fatal: (cause) => this.fatal(cause),
+        },
+        pending,
+      );
+      return { ...result, anchor };
+    } catch (err) {
+      this.fatal(err);
+      throw err;
+    }
+  }
+
+  /** True once drain-and-exit started; the writer admits nothing more. */
+  get failed(): boolean {
+    return this.fatalStarted;
   }
 
   /** Drains the queue, then closes writerConn and releases flock. */
   async close(): Promise<void> {
     await this.queue.drain();
-    await releaseExclusion(this.ex);
+    await this.files.drain();
+    await this.release();
   }
 }

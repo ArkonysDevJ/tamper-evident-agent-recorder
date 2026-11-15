@@ -8,8 +8,9 @@ export const EXIT_OK = 0;
 export const EXIT_FAILED = 1;
 export const EXIT_INPUT_UNAVAILABLE = 2;
 
-export function failureOutput(code: string, param: number): string {
-  return `${code} ${String(param)}\n`;
+/** <CODE> <parameter>; the parameter may exceed the safe-integer range (inventory filenames, §6 Step 2). */
+export function failureOutput(code: string, param: number | bigint): string {
+  return `${code} ${param.toString()}\n`;
 }
 
 export const INPUT_UNAVAILABLE_OUTPUT = 'INPUT_UNAVAILABLE 0\n';

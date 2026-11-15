@@ -312,19 +312,21 @@ test('tear-verify bin', async (t) => {
   });
 });
 
-test('verifier extension points', async (t) => {
-  await t.test('namespace entries need Step 2 (spec 003): exit 3, no canonical output', () => {
+test('verifier anchoring steps are wired (spec 003)', async (t) => {
+  await t.test('a namespace entry now reaches Step 2: an unpaired 10.tsr is ANCHOR_PACKAGE_INCOMPLETE 10', () => {
     const rows = chain();
     const inputs = writeInputs(chainIdOf(rows), serialize(rows));
     fs.writeFileSync(path.join(inputs.checkpointsPath, '10.tsr'), 'x');
     const r = runCli(cliArgs(inputs));
-    assert.equal(r.status, 3);
-    assert.equal(r.stdout.length, 0);
-    assert.match(r.stderr.toString(), /not implemented/);
+    assert.equal(r.status, 1);
+    assert.equal(r.stdout.toString(), 'ANCHOR_PACKAGE_INCOMPLETE 10\n');
+    assert.equal(r.stderr.length, 0);
   });
-  await t.test('control events need Step 2b (spec 003): exit 3', () => {
+  await t.test('a control event now reaches Step 2b: a valid checkpoint_failed verifies, exit 0', () => {
     const rows = chain([pausePayload(1), obj({ event_type: 'checkpoint_failed', operation: 'tear.checkpoint', target_seq: 1, error_type: 'x' })]);
-    assert.equal(verifyBytes(chainIdOf(rows), serialize(rows)).exitCode, 3);
+    const r = verifyBytes(chainIdOf(rows), serialize(rows));
+    assert.equal(r.exitCode, 0);
+    assert.equal(r.stdout, 'VALID_UNANCHORED 0..2\nMAX_ANCHOR_GAP 0\nANCHORED_CHECKPOINT_FAILURES 0\n');
   });
   await t.test('.writer.lock is ignored', () => {
     const rows = chain();

@@ -9,8 +9,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { flockSync } from 'fs-ext';
 import { TearError } from '../errors.js';
+import { WRITER_LOCK_NAME } from './names.js';
 
-export const WRITER_LOCK_NAME = '.writer.lock';
+export { WRITER_LOCK_NAME };
 
 export class WriterLock {
   private fd: number | null;

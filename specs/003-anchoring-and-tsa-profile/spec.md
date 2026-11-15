@@ -59,7 +59,54 @@ the work package that implements them.
 
 - **Transport per TSA:** HTTP POST of the DER `.tsq` with `Content-Type: application/timestamp-query`
   (RFC 3161 §3.4). Primary `https://freetsa.org/tsr`, secondary `http://timestamp.digicert.com`, in the
-  §5.7 order. The URLs are checked against the Phase 0 record when this spec starts. The response
+  §5.7 order. The URLs were checked on 2026-11-14: both answered a request with a granted response. The response
   `Content-Type` plays no part in acceptance; only the §5.7 step 2 and step 3 checks do.
 - **`Accuracy.seconds`:** decoded from its DER INTEGER as a `BigInt`; `ACCURACY_NS` and `LATEST_BOUND_NS`
   are computed in `BigInt`, never through `Number`.
+- **DER reader:** the ASN.1 DER reader is written in this repository (`src/asn1/der.ts`). It accepts only
+  definite lengths in minimal form and single-byte identifiers, and rejects indefinite lengths, non-minimal
+  lengths, high tag numbers, end-of-contents octets, trailing bytes and reads outside bounds, with explicit size
+  (1 MiB) and depth (32) limits. It returns elements and byte ranges only; each structure is interpreted in its
+  own module. Every hash, signature check and key load uses `node:crypto`. It is tested with negative vectors for
+  each rejection rule and checked against `openssl` on every real receipt and certificate
+  (`npm run test:local`). It is a trust surface of its own, with no external review.
+- **SET OF ordering:** DER order is enforced for every SET OF (signed and unsigned attributes, attribute values,
+  `digestAlgorithms`, `signerInfos`, `crls`, and RDNs in Names) except the SignedData certificate set, which the
+  real DigiCert receipts carry out of DER order. Because signed attributes must be in DER order, the received
+  bytes are their DER encoding, over which the signature is verified as §6a requires.
+- **Request encoding:** the SHA-256 AlgorithmIdentifier in the TimeStampReq has absent parameters (RFC 5754 §2),
+  since §5.7 step 1 does not fix the form. Both TSAs accepted it.
+- **`anchor.block` placement (§10):** Step 2.1 checks `block` only as a JSON object with `seq == k` whose canonical
+  hash is `entry_hash`. Its full row schema is checked at Step 2.6, through byte equality with log row k, which
+  already passed Step 1.
+- **Root `pathLenConstraint` (§10):** a root's own value is not applied; intermediates' values are.
+- **Signer keyUsage:** read literally from §6a: when present, it must set at least one of digitalSignature or
+  contentCommitment; other bits are allowed ("only" applies to the extendedKeyUsage).
+- **ESS binding:** the signer is the embedded certificate that every present ESS reference (v1 and v2) identifies
+  by its first certificate hash. `issuerSerial`, when present, must carry the signer serial and a directoryName
+  equal to the signer's issuer Name. An explicitly encoded SHA-256 `ESSCertIDv2.hashAlgorithm` is accepted, as §6a
+  states, although DER would omit it (known debt in §10). The SignerInfo `sid` must identify the same certificate,
+  by issuer and serial or by subjectKeyIdentifier.
+- **Signed attributes:** required at Step 2.3; any duplicate attribute type is rejected; content-type and
+  message-digest must each carry exactly one value.
+- **Optional SignedData fields (§10):** other CertificateChoices, `crls` and `unsignedAttrs` are decoded
+  structurally and then ignored. The receipts in the frozen fixture carry none of them (see its manifest).
+- **DEFAULT values encoded explicitly:** `ordering FALSE`, an Extension `critical FALSE`, basicConstraints
+  `cA FALSE` and certificate version v1 break DER and fail decoding.
+- **SubjectPublicKeyInfo:** RSA keys must use rsaEncryption with NULL parameters; EC keys must name P-256, P-384 or
+  P-521 by OID.
+- **Transport limits:** redirects are not followed; responses over 256 KiB are a TSA failure.
+- **`checkpoint_failed.error_type`:** `tsa_unreachable` (timeout or network), `tsa_rejected` (HTTP status or PKIStatus
+  not granted) or `tsa_validation_failed` (any other step 3 failure), named after the last retained TSA's failure.
+- **Append and its anchor:** the append of record k resolves only after its anchor settled (anchored or
+  `checkpoint_failed`). If the anchor flow aborts (filesystem or SQL failure, or writer invalidation), that append
+  rejects although row k is committed; the caller treats it as unconfirmed (the tool is not run, nothing is
+  delivered).
+- **Drain-and-exit:** after a fatal anchor failure the writer invalidates writerConn, waits for started namespace
+  mutations, closes writerConn, releases flock and exits the process with code 70. The exit step is injectable.
+- **Writer start-up:** a bundle that fails loading stops `ChainWriter.open` with `TSA_BUNDLE_UNLOADABLE`.
+- **Frozen fixture with both TSAs:** built once by `npm run fixture:build` through the real writer, export and
+  evidence-package steps. For anchors 20 and 40 the primary (FreeTSA) is made to fail locally with HTTP 503,
+  without contacting it, so the writer's own fallback obtains real DigiCert receipts; anchors 10 and 30 come from
+  FreeTSA. Writer start-up uses the clean-E1 test classifier until spec 006. The tool refuses to overwrite an
+  existing fixture.

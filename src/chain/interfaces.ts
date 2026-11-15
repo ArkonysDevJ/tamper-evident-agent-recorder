@@ -4,7 +4,8 @@
 //   initializeChain inspection (§5.3a steps 2–4) and by writer start-up. Its
 //   default here explicitly reports "not implemented".
 // - AnchorHook: called inside the SQL transaction of every application append,
-//   where §5.7 sets the pending anchor. Its default here does nothing.
+//   where §5.7 sets the pending anchor. The writer's default is the automatic
+//   trigger of src/anchor/trigger.ts; noAnchorHook never sets one.
 
 import type { NamespaceEntry } from '../fs/inventory.js';
 import type { ChainState } from './state.js';
@@ -51,10 +52,18 @@ export interface AnchorHookContext {
   readonly query: (text: string, values?: unknown[]) => Promise<unknown[]>;
 }
 
+/** The pending anchor a hook set in the append transaction. */
+export interface PendingAnchor {
+  readonly seq: number;
+  readonly entryHash: string;
+  readonly ts: string;
+}
+
 export interface AnchorHook {
-  onApplicationCommit(ctx: AnchorHookContext): Promise<void>;
+  /** Returns the pending anchor it set in this transaction, or null. */
+  onApplicationCommit(ctx: AnchorHookContext): Promise<PendingAnchor | null>;
 }
 
 export const noAnchorHook: AnchorHook = {
-  onApplicationCommit: async () => undefined,
+  onApplicationCommit: async () => null,
 };

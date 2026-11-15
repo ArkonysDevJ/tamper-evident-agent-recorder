@@ -50,9 +50,9 @@ Recorded here and declared in the report of the work package that implements the
 
 - **Malformed command line:** a missing, repeated or unknown option is an invocation failure:
   `INPUT_UNAVAILABLE 0`, exit 2 (§6b).
-- **Inputs that need anchor verification:** until spec 003, a namespace with entries other than `.writer.lock`,
-  or a log with control events, exits 3 with empty stdout and the reason on stderr. Exit 3 is outside the §6b
-  contract and is never a successful verification. An internal error also exits 3.
+- **Exit 3:** an internal error (an unclassified exception) exits 3 with empty stdout and the reason on stderr.
+  Exit 3 is outside the §6b contract and is never a successful verification. Before spec 003, inputs that needed
+  anchor verification also exited 3; spec 003 implements Steps 2, 2b and 3, so they no longer do.
 - **First-failure placements left open (§10):** as recorded in spec 001; the verifier uses the same rule core.
 - **Whitespace in the row envelope:** JSON whitespace around a row's object (spaces, tabs, and CR before the LF)
   is accepted, as RFC 8259 permits. The hash covers the canonical block, so this whitespace does not change the
