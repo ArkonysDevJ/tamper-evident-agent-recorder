@@ -8,7 +8,7 @@
 // §5.7 step 3 in the writer) is a separate function.
 
 import { createHash } from 'node:crypto';
-import { checkTree, decodeDer, encodingOf } from '../asn1/der.js';
+import { checkTree, contentOf, decodeDer, encodingOf } from '../asn1/der.js';
 import type { DerDocument, Tlv } from '../asn1/der.js';
 import {
   Asn1Error,
@@ -167,7 +167,19 @@ function parseStructure(tsr: Uint8Array): ParsedReceipt {
   const statusInfo = new Fields(seq(doc, resp.next(TAG.SEQUENCE, 'status'), 'PKIStatusInfo'), 'PKIStatusInfo');
   const status = integer(doc, statusInfo.next(TAG.INTEGER, 'status'), 'PKIStatus');
   const freeText = statusInfo.optional(TAG.SEQUENCE);
-  if (freeText !== undefined) for (const t of seq(doc, freeText, 'statusString')) expectTag(t, TAG.UTF8String, 'statusString');
+  if (freeText !== undefined) {
+    // PKIFreeText ::= SEQUENCE SIZE (1..MAX) OF UTF8String (RFC 3161 §2.4.2, RFC 4210): never empty, valid UTF-8.
+    const texts = seq(doc, freeText, 'statusString');
+    if (texts.length === 0) fail('statusString is empty');
+    for (const t of texts) {
+      try {
+        new TextDecoder('utf-8', { fatal: true }).decode(contentOf(doc, expectTag(t, TAG.UTF8String, 'statusString')));
+      } catch (err) {
+        if (err instanceof Asn1Error) throw err;
+        fail('statusString is not valid UTF-8');
+      }
+    }
+  }
   const failInfo = statusInfo.optional(TAG.BIT_STRING);
   if (failInfo !== undefined) bitString(doc, failInfo, 'failInfo');
   statusInfo.end();
