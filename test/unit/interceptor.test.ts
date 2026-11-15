@@ -122,6 +122,8 @@ test('005 AC-9 m3-report', async (t) => {
     const text = renderM3({ ...base, withInterceptor: [run([20, 30, 16], [], [3000])], withoutInterceptor: [run([0.01], [], [])] });
     assert.match(text, /\| Ordinary records, median per event \(with interceptor\) \| under 15 ms \| 20\.000 ms \| not met \|/);
     assert.match(text, /\| Anchor points, p95 \(0 samples\) \| reported \| unmeasured \| — \|/);
+    assert.match(text, /\| Interceptor cost per ordinary event \(median with − median without\), absolute \| — \| 19\.990 ms \| — \|/);
+    assert.match(text, /baseline without the interceptor is close to zero by construction/);
     assert.match(text, /\| Average record size \(exported row\) \| under 2048 bytes \| 3000\.0 bytes \| not met \|/);
   });
   await t.test('anchor points are reported apart from ordinary records, with p50 and p95', () => {
