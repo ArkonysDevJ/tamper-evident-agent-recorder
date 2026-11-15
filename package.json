@@ -21,7 +21,8 @@
     "test:tamper": "npm run build && node --test --test-concurrency=1 \"dist/test/tamper/**/*.test.js\"",
     "tamper:receipts": "npm run build && node dist/test/fixture-tools/build-tamper-receipts.js",
     "m3": "npm run build && node dist/test/m3/run-m3.js",
-    "m3:render": "npm run build && node dist/test/m3/render-m3.js"
+    "m3:render": "npm run build && node dist/test/m3/render-m3.js",
+    "dataset:generate": "npm run build && node dist/scripts/generate-dataset.js"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
