@@ -1,0 +1,42 @@
+{
+  "description": "Real replacement receipts for T6a and T6b (Blueprint §7), requested once; never requested again.",
+  "t6b_base_ms": 1794701412560,
+  "receipts": {
+    "T6a-30": {
+      "tsa": "freetsa",
+      "file": "T6a-30.tsr",
+      "entry_hash": "a53e6c1fb45609506cf9bb7b927e142c86c87c5789a838914b27780a75f5cd84",
+      "nonce_hex": "78d7cc32b14ab618",
+      "tsr_sha256": "692212035b375e1c816d7ae6c19059f99b51460d1bb92509dc1d3282a619b176",
+      "gen_time": "20261115001016Z",
+      "serial_hex": "a064843"
+    },
+    "T6a-40": {
+      "tsa": "digicert",
+      "file": "T6a-40.tsr",
+      "entry_hash": "b8325c51c8c0b30f5da952035f5db0180bdfaafd9de722b39ca102138d99764e",
+      "nonce_hex": "40b25acc29143be6",
+      "tsr_sha256": "f64695c50ecc09a5cb5eaa9c2fc146de372c2c0e9c734570681899f6fe1a4184",
+      "gen_time": "20261115001016Z",
+      "serial_hex": "18c597ab362bed70fdc516cb1da35c3b"
+    },
+    "T6b-30": {
+      "tsa": "freetsa",
+      "file": "T6b-30.tsr",
+      "entry_hash": "8ff8abc6abb6c6db651df681d46f36a1edaca1c29230b7dbf5f0d3bb4d5788ce",
+      "nonce_hex": "4703f00878628341",
+      "tsr_sha256": "002c8c5734716f9213d641c0bcddd7c8325e96cb29b37e157dc9485687d03286",
+      "gen_time": "20261115001017Z",
+      "serial_hex": "a06484e"
+    },
+    "T6b-40": {
+      "tsa": "digicert",
+      "file": "T6b-40.tsr",
+      "entry_hash": "b6e7137cec00c263866ddfd72b7e00723e9795505ba3fa0090eaef93b4575d0a",
+      "nonce_hex": "755c1cba8b401f4b",
+      "tsr_sha256": "621c24412dec9cc9b7cfa36a3aafff7838988300fceb3a2fe4668dda4c8e51c5",
+      "gen_time": "20261115001017Z",
+      "serial_hex": "1e996a2ce076ac3587c504221be2b4b8"
+    }
+  }
+}

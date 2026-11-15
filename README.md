@@ -7,7 +7,8 @@ evident, using a SHA-256 hash chain over RFC 8785 canonical JSON and RFC 3161 ti
 and exports them as `events.jsonl`. Anchoring (spec 003) time-stamps every tenth application record with RFC 3161,
 first through FreeTSA and then DigiCert, under the fixed TEAR-TSA-01 profile. The offline verifier `tear-verify`
 (specs 002 and 003) checks an exported log and its anchor packages against the pinned bundle
-`certs/tsa_roots.pem`. A frozen fixture with real receipts from both TSAs is in `test/fixtures/frozen-m1/`.
+`certs/tsa_roots.pem`. A frozen fixture with real receipts from both TSAs is in `test/fixtures/frozen-m1/`, and the §7 tamper battery
+runs on copies of it (`npm run test:tamper`).
 
 - What will be built, and what it will and will not prove: [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md)
   (the only normative source).
@@ -54,6 +55,20 @@ matches the fingerprint published before the first anchor (Blueprint §3.3 item 
 | `npm test` | Nothing else; runs in CI, including the frozen fixture without network |
 | `npm run test:pg` | A local PostgreSQL (`PGHOST`, `PGDATABASE`, `PGUSER`) |
 | `npm run test:local` | The `openssl` command: checks the DER reader against OpenSSL on the real receipts |
+| `npm run test:tamper` | Nothing else: the §7 tamper battery on copies of the frozen fixture, offline |
+
+## Reproducing the tamper battery
+
+```sh
+npm ci
+npm run test:tamper
+cat test-results/tamper-results.md
+```
+
+The battery applies each §7 mutation (T1–T7 under both adversaries, X1 and X2) to a copy of
+`test/fixtures/frozen-m1/`, runs the offline verifier and compares the result with the one §7 specifies. It writes
+the table "specified → measured" to `test-results/tamper-results.md`; two runs give the same table. T6a and T6b use
+real receipts stored once in `test/fixtures/tamper-receipts/`; X2 generates its own root and signer at run time.
 
 ## License
 
