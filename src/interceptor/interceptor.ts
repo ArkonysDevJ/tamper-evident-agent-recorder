@@ -11,8 +11,10 @@
 // run, nothing is delivered and the agent does not continue. Nothing is retried.
 
 import { TearError } from '../errors.js';
+import { initializeChain } from '../chain/initialize.js';
+import type { InitializeOptions, InitializeResult } from '../chain/initialize.js';
 import { ChainWriter } from '../chain/writer.js';
-import type { AppendResult } from '../chain/writer.js';
+import type { AppendResult, WriterOptions } from '../chain/writer.js';
 import { readPepper } from './pepper.js';
 import { argsHmac, resultDigest, responseDigest } from '../crypto/digests.js';
 import { canonicalize } from '../json/jcs.js';
@@ -122,17 +124,19 @@ export class Interceptor {
 
   /**
    * Start-up: the pepper is read and checked first, so a missing or invalid
-   * TEAR_HMAC_PEPPER refuses before anything is written; then the chain is
-   * created and its writer started in the same session (spec 005, provisional
-   * until spec 006).
+   * TEAR_HMAC_PEPPER refuses before anything is written. Then initializeChain
+   * (§5.3a) creates the chain or inspects the existing one without mutation,
+   * and the writer starts under fresh exclusion, running §5.6 reconciliation
+   * before it accepts traffic.
    */
   static async start(
-    opts: Parameters<typeof ChainWriter.initializeAndOpen>[0],
+    opts: WriterOptions & Pick<InitializeOptions, 'genesisTs' | 'pepperId'>,
     env: NodeJS.ProcessEnv = process.env,
-  ): Promise<{ interceptor: Interceptor; writer: ChainWriter }> {
+  ): Promise<{ interceptor: Interceptor; writer: ChainWriter; initialized: InitializeResult }> {
     const pepper = readPepper(env);
-    const writer = await ChainWriter.initializeAndOpen(opts);
-    return { interceptor: new Interceptor(writer, pepper), writer };
+    const initialized = await initializeChain(opts);
+    const writer = await ChainWriter.open(opts);
+    return { interceptor: new Interceptor(writer, pepper), writer, initialized };
   }
 
   register(name: string, tool: Tool): void {

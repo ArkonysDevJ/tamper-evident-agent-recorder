@@ -14,7 +14,7 @@ export class RecordingFs implements DurableFsOps {
   /** Fail the n-th call (1-based) of this operation with this errno code. */
   failOn: { op: OpName; nth: number; code: string } | null = null;
   /** Hook run before each call, after it is recorded. */
-  before: ((op: OpName) => Promise<void> | void) | null = null;
+  before: ((op: OpName, calls: readonly string[]) => Promise<void> | void) | null = null;
   private counts = new Map<OpName, number>();
 
   constructor(private readonly base: string) {}
@@ -26,7 +26,7 @@ export class RecordingFs implements DurableFsOps {
 
   private async step<T>(op: OpName, label: string, run: () => Promise<T>): Promise<T> {
     this.calls.push(`${op} ${label}`);
-    if (this.before !== null) await this.before(op);
+    if (this.before !== null) await this.before(op, this.calls);
     const n = (this.counts.get(op) ?? 0) + 1;
     this.counts.set(op, n);
     if (this.failOn !== null && this.failOn.op === op && this.failOn.nth === n) {

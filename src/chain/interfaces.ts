@@ -2,12 +2,13 @@
 // Interfaces this package defines and later packages implement.
 // - RecoveryClassifier: the E1–E10 classification of Blueprint §5.6, used by
 //   initializeChain inspection (§5.3a steps 2–4) and by writer start-up. Its
-//   default here explicitly reports "not implemented".
+//   implementation is src/recovery/classifier.ts.
 // - AnchorHook: called inside the SQL transaction of every application append,
 //   where §5.7 sets the pending anchor. The writer's default is the automatic
 //   trigger of src/anchor/trigger.ts; noAnchorHook never sets one.
 
 import type { NamespaceEntry } from '../fs/inventory.js';
+import type { LoadedBundle } from '../pki/bundle.js';
 import type { ChainState } from './state.js';
 import type { CutProfile } from './profile.js';
 import type { AcceptedRow } from './step1.js';
@@ -24,10 +25,11 @@ export interface ChainView {
   readonly entries: readonly NamespaceEntry[];
   readonly nowNs: bigint;
   readonly profile: CutProfile;
+  /** The loaded bundle, to validate packages under TEAR-TSA-01 (§5.6 step 3). */
+  readonly bundle: LoadedBundle;
 }
 
 export type Classification =
-  | { readonly kind: 'not_implemented' }
   | { readonly kind: 'state'; readonly state: RecoveryState }
   | { readonly kind: 'inconsistent'; readonly reason: string };
 
@@ -39,9 +41,6 @@ export interface RecoveryClassifier {
   classify(view: ChainView): Promise<Classification>;
 }
 
-export const notImplementedClassifier: RecoveryClassifier = {
-  classify: async () => ({ kind: 'not_implemented' }),
-};
 
 export interface AnchorHookContext {
   readonly chainId: string;

@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     pg: pgConfig,
     profile: 'base',
   });
-  // Writer start-up needs the §5.6 classifier of a later package; the clean-E1 test classifier stands in.
+  // Historical note: the frozen fixture was built before spec 006, with the clean-E1 test classifier.
   const writer = await ChainWriter.open({
     checkpointsRoot: root,
     chainId,

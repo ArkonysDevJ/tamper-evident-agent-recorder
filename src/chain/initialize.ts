@@ -14,7 +14,9 @@ import { parseTimestampMs } from '../time/timestamps.js';
 import { acquireExclusion, releaseExclusion } from './exclusion.js';
 import type { Exclusion } from './exclusion.js';
 import { CHAIN_VERSION, ZERO_HASH, isChainId } from './ids.js';
-import { notImplementedClassifier } from './interfaces.js';
+import { loadBundle } from '../pki/bundle.js';
+import type { LoadedBundle } from '../pki/bundle.js';
+import { stateClassifier } from '../recovery/classifier.js';
 import type { RecoveryClassifier } from './interfaces.js';
 import { permitsAutomaticRecovery } from './profile.js';
 import type { CutProfile } from './profile.js';
@@ -166,7 +168,13 @@ async function inspectExisting(
 
   // Step 3: in-memory view without recognized temporary files, classified through the interface.
   const hasTmp = entries.some((e) => e.temporary);
-  const classifier = opts.classifier ?? notImplementedClassifier;
+  let bundle: LoadedBundle;
+  try {
+    bundle = loadBundle(opts.bundleBytes);
+  } catch (err) {
+    throw new TearError('TSA_BUNDLE_UNLOADABLE', (err as Error).message);
+  }
+  const classifier = opts.classifier ?? stateClassifier;
   const classification = await classifier.classify({
     chainId: opts.chainId,
     nsPath: ex.nsPath,
@@ -175,10 +183,8 @@ async function inspectExisting(
     entries: entries.filter((e) => !e.temporary),
     nowNs: (opts.now ?? (() => BigInt(Date.now()) * 1_000_000n))(),
     profile: opts.profile,
+    bundle,
   });
-  if (classification.kind === 'not_implemented') {
-    throw new TearError('RECOVERY_CLASSIFIER_NOT_IMPLEMENTED', 'E1–E10 classification is not implemented yet');
-  }
   if (classification.kind === 'inconsistent') throw inconsistent(classification.reason);
 
   // Step 4: map the classification for the active profile.

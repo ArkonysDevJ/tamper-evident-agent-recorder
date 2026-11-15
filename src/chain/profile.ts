@@ -12,3 +12,8 @@ export const CUT_PROFILES: readonly CutProfile[] = ['base', 'cut1', 'cut1-2', 'c
 export function permitsAutomaticRecovery(profile: CutProfile): boolean {
   return profile === 'base' || profile === 'cut1' || profile === 'cut1-2';
 }
+
+/** Cut 2 retires the B3 retry and ANCHORED_AFTER_PREVIOUS_FAILURE (§8). */
+export function retiresCloseRetry(profile: CutProfile): boolean {
+  return profile === 'cut1-2' || profile === 'cut1-3' || profile === 'cut1-4';
+}
