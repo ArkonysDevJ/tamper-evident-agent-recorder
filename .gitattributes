@@ -5,3 +5,8 @@ docs/BLUEPRINT.md    eol=lf -diff -merge
 certs/tsa_roots.pem  eol=lf -diff -merge
 docs/BLUEPRINT.rendered.md eol=lf
 docs/review/*.md eol=lf
+
+# Byte-exact fixtures and artifacts: never converted on checkout (their digests are recorded).
+test/fixtures/** -text
+experiments/b2/** -text
+experiments/dataset/traces.jsonl -text
