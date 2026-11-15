@@ -30,6 +30,9 @@ The full report, with what was not tested, is [`docs/REPORT.md`](docs/REPORT.md)
 
 Requirements: Node.js 24 (see `.nvmrc`), a C/C++ toolchain and Python (the `flock` binding is compiled at install
 time), Linux with an ext4 or xfs filesystem.
+Supported platform: Linux on ext4 or xfs (the specification requires it and the recorder checks the filesystem at
+start-up). Built and tested only on Ubuntu 24.04 under WSL2. macOS and native Windows are not supported and were not
+tested; on Windows, use WSL2.
 
 ```sh
 npm ci
@@ -41,16 +44,17 @@ npm run test:tamper   # offline: the §7 tamper matrix and the layer ladder
 By hand: verify the frozen fixture, then change one word in a copy and verify again.
 
 ```sh
-C=890c1d36-1e29-45ac-8efc-bdc18c2a34c1
-npm exec -- tear-verify --log test/fixtures/frozen-m1/events.jsonl \
-  --checkpoints test/fixtures/frozen-m1/$C/ --tsa-ca-bundle certs/tsa_roots.pem
+npm exec -- tear-verify --log test/fixtures/frozen-m1/events.jsonl --checkpoints test/fixtures/frozen-m1/890c1d36-1e29-45ac-8efc-bdc18c2a34c1/ --tsa-ca-bundle certs/tsa_roots.pem
 # VERIFIED_ANCHORED 0..40
 # VALID_UNANCHORED 41..50
 # ...
+```
 
+```sh
+# These commands assume a Bash shell (Linux or WSL2): they use mktemp, sed -i and a shell variable.
 D=$(mktemp -d) && cp -r test/fixtures/frozen-m1/. "$D"/
 sed -i 's/"reason":"baseline"/"reason":"tampered"/' "$D"/events.jsonl
-npm exec -- tear-verify --log "$D"/events.jsonl --checkpoints "$D"/$C/ --tsa-ca-bundle certs/tsa_roots.pem
+npm exec -- tear-verify --log "$D"/events.jsonl --checkpoints "$D"/890c1d36-1e29-45ac-8efc-bdc18c2a34c1/ --tsa-ca-bundle certs/tsa_roots.pem
 # HASH_MISMATCH 25   (exit 1)
 ```
 
