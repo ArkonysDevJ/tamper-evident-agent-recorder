@@ -38,7 +38,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Durable file primitives | §5.5 | 008 | implemented; used by the anchor flow |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | implemented; recovery of interrupted anchors is spec 006 |
 | Tamper battery | §7 | 004 | implemented: 15/15 primary results, X1 and X2 match §7 |
-| Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | not implemented |
+| Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | implemented with a scripted reference agent; M3 measured |
 | Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
 | Final report | §8, §9 | 007 | not written |
 
@@ -144,6 +144,30 @@ rejection rule and checked against `openssl` on every real receipt and certifica
 had no external review. No cryptographic primitive is implemented here: hashes, signatures and key loading use
 `node:crypto`.
 
+## Interceptor and M3 (spec 005)
+
+```text
+Interceptor.start: readPepper(TEAR_HMAC_PEPPER) → ChainWriter.initializeAndOpen (new chain, same session)
+agent step                      record (confirmed COMMIT first)                    then
+  tool call      → beginCall    tool_call  {tool_name, call_id, task_id, args_hmac} → the tool runs
+                 → completeCall tool_result {call_id, task_id, error_type, result_digest, summary} → result delivered
+  pause          → epistemicPause   epistemic_pause                                  → the agent continues
+  resolution     → humanResolution  human_resolution                                 → the agent continues
+  final answer   → finalResponse    agent_final_response {response_digest}           → answer delivered
+any failed or unknown COMMIT: the step stops; nothing runs, nothing is delivered, nothing is retried
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/interceptor/pepper.ts` | `TEAR_HMAC_PEPPER`: lowercase hex, at least 32 bytes; never echoed | §4.4 |
+| `src/interceptor/interceptor.ts` | Write-ahead recording, adapter JSON domain, digests, failed-tool value, start-up order | §2, §4.3, §4.4, §5.4 |
+| `src/chain/writer.ts` (`initializeAndOpen`) | Writer start in the session that created the chain (provisional until spec 006) | §5.3a |
+
+| File | What it does |
+| --- | --- |
+| `test/agent/scripted-agent.ts` | Scripted reference agent (a test instrument, no LLM): three deterministic tools, one always fails |
+| `test/m3/run-m3.ts`, `test/m3/report.ts` | M3 harness and its results table (`npm run m3`; local PostgreSQL, TSAs, `TEAR_HMAC_PEPPER`) |
+
 ## Tamper battery (spec 004)
 
 ```text
@@ -207,4 +231,5 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `test/fixture-tools/` | One-time builders: the fixture (`npm run fixture:build`; local PostgreSQL and both TSAs) and the T6a/T6b receipts (`npm run tamper:receipts`; both TSAs) |
 | `test/fixtures/tamper-receipts/` | The stored real receipts for T6a and T6b, with their manifest and the T6b base time |
 | `test/tamper/` | The tamper battery (`npm run test:tamper`; offline) |
+| `test/agent/`, `test/m3/` | The scripted reference agent and the M3 harness (`npm run m3`, `npm run m3:render`) |
 | `test/local/` | Local checks with external tools (`npm run test:local`): the DER reader against `openssl` |

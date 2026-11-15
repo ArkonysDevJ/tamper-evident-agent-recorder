@@ -8,7 +8,10 @@ and exports them as `events.jsonl`. Anchoring (spec 003) time-stamps every tenth
 first through FreeTSA and then DigiCert, under the fixed TEAR-TSA-01 profile. The offline verifier `tear-verify`
 (specs 002 and 003) checks an exported log and its anchor packages against the pinned bundle
 `certs/tsa_roots.pem`. A frozen fixture with real receipts from both TSAs is in `test/fixtures/frozen-m1/`, and the §7 tamper battery
-runs on copies of it (`npm run test:tamper`).
+runs on copies of it (`npm run test:tamper`). A write-ahead interceptor (spec 005) records every tool call,
+epistemic pause, human resolution and final answer before it takes effect; it is exercised by a scripted
+reference agent, a test instrument with no LLM. Until spec 006, the writer starts only in the session that
+creates a new chain.
 
 - What will be built, and what it will and will not prove: [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md)
   (the only normative source).
@@ -56,6 +59,18 @@ matches the fingerprint published before the first anchor (Blueprint §3.3 item 
 | `npm run test:pg` | A local PostgreSQL (`PGHOST`, `PGDATABASE`, `PGUSER`) |
 | `npm run test:local` | The `openssl` command: checks the DER reader against OpenSSL on the real receipts |
 | `npm run test:tamper` | Nothing else: the §7 tamper battery on copies of the frozen fixture, offline |
+
+## Measuring the overhead (M3)
+
+```sh
+export TEAR_HMAC_PEPPER=...   # lowercase hex, at least 64 characters; never written anywhere by TEAR
+npm run m3                    # local PostgreSQL and network access to the TSAs
+cat test-results/m3-results.md
+```
+
+The run uses 100 events per run, 5 runs with and 5 without the interceptor, and new chains that anchor at 10 and
+20 (10 time-stamp requests). `npm run m3:render` re-renders the table from the saved samples without measuring
+again.
 
 ## Reproducing the tamper battery
 
