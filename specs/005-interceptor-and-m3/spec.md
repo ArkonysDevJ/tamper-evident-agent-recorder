@@ -53,3 +53,31 @@ the work package that implements them.
   reported. If time runs short in this work package, Cut 1 of §8 applies and M3 is reported as unmeasured.
 - **Pepper encoding:** `TEAR_HMAC_PEPPER` holds lowercase hex of at least 64 characters (32 bytes). The
   writer decodes it to bytes and rejects any other format.
+- **Writer start-up until spec 006 (provisional):** `ChainWriter.initializeAndOpen` creates the chain in a new,
+  empty namespace and, only when `initializeChain` returns `INITIALIZED`, starts the writer in that same session
+  (same flock and writerConn). Opening an existing chain still answers "not implemented"
+  (`RECOVERY_CLASSIFIER_NOT_IMPLEMENTED`). There is no other start-up path. Spec 006 replaces this with the full
+  §5.6 start-up.
+- **Start-up order:** `Interceptor.start` reads and checks `TEAR_HMAC_PEPPER` first, so a missing or invalid
+  value writes nothing (not even `.writer.lock`). Only the public `pepper_id` is recorded, in the genesis row.
+- **Operation literals:** `tool_call` and `tool_result` use `execute_tool`, `agent_final_response` uses
+  `invoke_agent`, `epistemic_pause` uses `tear.epistemic_pause`, and `human_resolution` uses
+  `tear.human_resolution`.
+- **Adapter JSON domain:** null, booleans, finite numbers, well-formed strings, dense arrays and plain objects with
+  data properties. Anything else (undefined, NaN, BigInt, functions, symbols, Date, Map, class instances, getters,
+  cycles, lone surrogates) is `ADAPTER_JSON_INVALID`. U+0000 is allowed in transient arguments, which are not
+  persisted (§4.4).
+- **A tool that throws something other than `ToolError`:** an adapter fault, not a tool result. No `tool_result`
+  is recorded and nothing is delivered, so the call stays visible as `INCOMPLETE_EXECUTION`. The same holds for a
+  tool result outside the JSON domain.
+- **`tool_result.summary`:** `<tool> succeeded` or `<tool> failed: <error_type>`.
+- **M3 per-event latency:** a tool step counts as two events: the call half (recording `tool_call`) and the result
+  half (running the tool, then recording `tool_result`). Pauses, resolutions and final answers count as one event
+  each. Without the interceptor the same halves are timed with no recording. The median is taken over every
+  ordinary event of the 5 runs.
+- **M3 anchor points:** each measured run is a new chain of its own with `max_auto_anchor_seq = 20` (anchors at 10
+  and 20): 10 samples over 5 runs, the fewest that give a p95, reported as nearest-rank p50 and p95. One
+  unmeasured warm-up run (no anchors) precedes the measured runs.
+- **M3 record size:** the mean byte length of an exported `events.jsonl` row, final LF included.
+- **M3 output:** `npm run m3` writes `test-results/m3-results.md` and the raw samples to `m3-results.json`;
+  `npm run m3:render` re-renders the table from the JSON without measuring again. CI does not run M3.
