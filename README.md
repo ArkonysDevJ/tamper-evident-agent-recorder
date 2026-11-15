@@ -73,6 +73,18 @@ The run uses 100 events per run, 5 runs with and 5 without the interceptor, and 
 20 (10 time-stamp requests). `npm run m3:render` re-renders the table from the saved samples without measuring
 again.
 
+## Experiments (layer ladder and pause exposure)
+
+| Command | What it does |
+| --- | --- |
+| `npm run test:tamper` | Also runs experiment A, the layer ladder: which of the 17 tamper cases each layer of evidence reveals (`test-results/layer-ladder.md`) |
+| `npm run test:experiments` | Experiment B1: the synthetic dataset through the real interceptor; exposure window of each epistemic pause (`test-results/pause-exposure.md`); needs PostgreSQL |
+| `npm run experiments:b2` | Experiment B2, run once: the first 150 events with the real TSAs; stores its artifacts in `experiments/b2/` |
+| `npm run dataset:generate` | Regenerates `experiments/dataset/traces.jsonl` (synthetic, fixed seed; see its README) |
+
+Expected outcomes are predeclared in `test/experiments/expected.ts`, committed before the measurement code. The
+dataset is synthetic and the exposure window is a property of the design, not a finding about agents.
+
 ## Reproducing the tamper battery
 
 ```sh

@@ -23,3 +23,32 @@ jobs:
       - run: npm test
       # The §7 tamper battery on copies of the frozen fixture; offline.
       - run: npm run test:tamper
+
+  experiments:
+    # Experiment B1 (pause exposure through the real interceptor) needs PostgreSQL.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: tear_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGDATABASE: tear_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:experiments
