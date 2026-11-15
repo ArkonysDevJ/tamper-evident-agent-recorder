@@ -12,6 +12,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { bundleSha256 } from '../src/crypto/digests.js';
 import { loadBundle } from '../src/pki/bundle.js';
+import { crossCheckedReceipts } from '../test/helpers/real-receipts.js';
 
 const R = (p: string): string => fs.readFileSync(path.resolve(p), 'utf8');
 
@@ -108,26 +109,38 @@ export function exposureLine(exposure: string, run: 'B1' | 'B2', moment: 'Before
   return { pauses: m[1]!, covered: m[2]!, events: e[1]! };
 }
 
+/** Measured B2 exposure in time (seconds), as the generated file states it. */
+export function b2TimeRange(exposure: string): { min: string; max: string } {
+  const m = /Exposure in time \(covered pauses\): min (\S+) · median \S+ · max (\S+) s\./.exec(sectionBetween(exposure, '## B2', '## Predeclared expectations'));
+  if (m === null) throw new Error('B2 exposure in time not found');
+  return { min: m[1]!, max: m[2]! };
+}
+
 /**
- * Experiment B for the report. B1 and B2 stay apart. Exposure in time is not reported as a result: FreeTSA signs
- * genTime in whole seconds while the scripted run records events in milliseconds, so it fell below the TSA's
- * resolution and depends on the pace of the agent; the reported result is the exposure in events.
+ * Experiment B for the report. B1 and B2 stay apart. The measured exposure in time of B2 is shown, with the reason
+ * it is not interpreted (review finding 1); the reported result is the exposure in events.
  */
 function exposureSection(exposure: string): string[] {
   const keep = (section: string): string[] =>
     section
       .split('\n')
-      .filter((l) => !l.includes('Exposure in time'))
+      .filter((l) => !l.startsWith('Exposure in time can be negative'))
       .map((l) => l.replace(/^## /, '### ').replace(/Close: (\w+) \(B(\d)\)/, 'Close: $1 (closeChain branch B$2)'));
+  const t = b2TimeRange(exposure);
   return [
     ...keep(sectionBetween(exposure, '## B1', '## B2')),
     '',
     ...keep(sectionBetween(exposure, '## B2', '## Predeclared expectations')),
     '',
-    'Exposure in time (B2) is not reported as a result. FreeTSA signs `genTime` in whole seconds, while the scripted',
-    'run records events in milliseconds; in this run every covering anchor was issued within the same second as the',
-    'pause, so the exposure in time fell below the resolution of the TSA and depends on the pace of the agent. The',
-    'reported result is the exposure in events.',
+    `Exposure in time (B2), as measured: from ${t.min} s to ${t.max} s. In some pauses the second signed by the TSA`,
+    'precedes the second of the pause. These values are consistent with two causes acting together: FreeTSA signs',
+    '`genTime` in whole seconds, and the host clock and the TSA clock differ by an amount these artifacts cannot',
+    'separate from the truncation. For that reason the exposure in time is not reported as a result; the reported',
+    'result is the exposure in events. The protocol tolerates such a difference: the time predicate accepts a signed',
+    '`genTime` down to 5 s before the anchored row (Blueprint §5.7).',
+    '',
+    'B1 and B2 replay the dataset with `beginCall` and `completeCall`, taking each result from the dataset: they',
+    'exercise the recording of tool calls, not the invocation of a registered tool through `callTool`.',
     '',
     `The truncation of the unanchored tail (B1) removed ${exposureFacts(exposure).removedPauses} pauses in this dataset; it is reported as measured.`,
     'The undetected deletion of pauses is shown on the frozen fixture by T3b (section 1), whose deleted rows 45..50',
@@ -135,7 +148,7 @@ function exposureSection(exposure: string): string[] {
     '',
     'Predeclared checks (`test/experiments/expected.ts`):',
     '',
-    ...tableAfter(exposure, '| Check |').filter((l) => !l.startsWith('| B2 exposure in time')),
+    ...tableAfter(exposure, '| Check |'),
   ];
 }
 
@@ -145,6 +158,25 @@ export function exposureFacts(exposure: string): { removedPauses: string; b2Stam
   const st = /Time-stamp requests: ([^;.]+)[;.]/.exec(sectionBetween(exposure, '## B2', '## Predeclared expectations'));
   if (t === null || st === null) throw new Error('exposure facts not found');
   return { removedPauses: t[2]!, b2Stamps: st[1]!.trim() };
+}
+
+/** Section "Independent review": the response to each finding, from docs/review/response.json. */
+function independentReview(): string[] {
+  const r = JSON.parse(R('docs/review/response.json')) as { findings: { n: number; said: string; reproduced: string; action: string; commits: string }[] };
+  return [
+    '## Independent review',
+    '',
+    'A read-only review of the tag `sprint-submission` (commit `c96c980`) was made by an AI model different from the',
+    'one that wrote the code, following [`docs/review/BRIEF.md`](review/BRIEF.md). It did not run the test suites. Its',
+    'findings are [`docs/review/FINDINGS.md`](review/FINDINGS.md), unedited. Each finding was first reproduced with a',
+    'test committed on its own, then corrected in a separate commit; a finding about the tests themselves was',
+    'confirmed by reading.',
+    '',
+    '| # | What the review said | Reproduced | What was done | Commits |',
+    '| --- | --- | --- | --- | --- |',
+    ...r.findings.map((f) => `| ${String(f.n)} | ${f.said} | ${f.reproduced} | ${f.action} | ${f.commits} |`),
+    '',
+  ];
 }
 
 /** Blueprint §10 bullets, verbatim. */
@@ -186,7 +218,7 @@ export function renderReport(): string {
     'generated by `scripts/render-report.ts`; every number in it comes from a generated file listed under "Sources".',
     'The normative design is `docs/BLUEPRINT.md` (readable copy: `docs/BLUEPRINT.rendered.md`).',
     '',
-    `- Results were measured on the measurement commit \`${run.commit}\` (clean working tree: ${run.worktree_clean ? 'yes' : 'no'}; final run finished at ${run.finished_at}). The published commit only adds the generated files (this report, \`docs/results/\` and the README results block); \`npm test\` and \`npm run test:tamper\` were repeated on it.`,
+    `- Results were measured on the measurement commit \`${run.commit}\` (clean working tree: ${run.worktree_clean ? 'yes' : 'no'}; final run finished at ${run.finished_at}). The published commit adds the generated files (this report, \`docs/results/\` and the README results block) and can also carry manual documentation edits made after the run, but no code change; \`npm test\` and \`npm run test:tamper\` were repeated on it.`,
     '- Active cut profile: **Base** (no cut profile of §8 was activated).',
     '',
     '## 1. Tamper-detection matrix (M1), X1 and X2, as measured',
@@ -321,18 +353,28 @@ export function renderReport(): string {
     ...implementationChoices(),
     '## 11. Trust surfaces of this implementation',
     '',
-    `- ${row('AC-16')}`,
+    `- ${row('AC-16')} The cross-check covers ${String(crossCheckedReceipts().length)} real receipts: ${String(crossCheckedReceipts().filter((r) => r.label.startsWith('frozen')).length)} of the frozen fixture, ${String(crossCheckedReceipts().filter((r) => r.label.startsWith('T6')).length)} replacement receipts of T6a and T6b, and ${String(crossCheckedReceipts().filter((r) => r.label.startsWith('B2')).length)} distinct receipts of B2.`,
+    '- The `ANCHOR_TIME` lines expected by the tamper battery are derived with the same receipt parser the verifier',
+    '  uses; a shared decoding error would give the same expected and observed line. That parser is checked against',
+    '  OpenSSL on the receipts listed above.',
+    '- The only e-mail addresses in the repository are contact fields inside the public TSA certificates (in',
+    '  `certs/tsa_roots.pem` and in the certificates embedded in the receipts); commits use GitHub noreply addresses.',
     '- The writer lock uses `fs-ext@2.1.1`, a native addon compiled at install time, because Node.js does not expose',
     '  `flock(2)` (§5.3). Its install script is the only one approved in `package.json`; the offline verifier does not',
     '  load it.',
     '',
     '## Experiment B: exposure window of an epistemic pause',
     '',
-    'The dataset is synthetic (`experiments/dataset/`). The exposure window is a property of the design (an automatic',
-    'anchor every 10 application events) measured on this workload; it is not a finding about agents or models.',
+    'The dataset is synthetic (`experiments/dataset/`). The exposure window is a property of the design, measured on',
+    'this workload; it is not a finding about agents or models. Anchors are requested "whenever an application event',
+    'is committed at a positive physical sequence number seq divisible by 10 (seq % 10 == 0)" (Blueprint §2). The',
+    'sequence also holds the control row of each anchor (at k+1), so nine application events fall between two',
+    'consecutive automatic anchors (ten before the first one). A pause is therefore covered after at most 9 further',
+    'application events in the first segment and at most 8 after it, as predeclared.',
     '',
     ...exposureSection(exposure),
     '',
+    ...independentReview(),
     '## Sources',
     '',
     '- `docs/results/final-run.json`: commit, environment and suite counts (`npm run report:final-run` on a clean clone).',

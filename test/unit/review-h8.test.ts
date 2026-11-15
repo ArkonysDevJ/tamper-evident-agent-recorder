@@ -7,6 +7,9 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import { test } from 'node:test';
 
+// Skipped until docs/REPORT.md is rendered after the final run, like the report checks.
+const opts = { skip: fs.existsSync('docs/REPORT.md') ? false : 'no docs/REPORT.md yet' };
+
 const BYTE_EXACT = [
   'test/fixtures/frozen-m1/events.jsonl',
   'test/fixtures/frozen-m1/manifest.json',
@@ -21,6 +24,6 @@ test('review H8: byte-exact files are never converted on checkout', () => {
   for (const line of out.trim().split('\n')) assert.match(line, /: text: unset$/, line);
 });
 
-test('review H8: the report does not say the published commit only adds generated files', () => {
+test('review H8: the report does not say the published commit only adds generated files', opts, () => {
   assert.doesNotMatch(fs.readFileSync('docs/REPORT.md', 'utf8'), /published commit only adds the generated files/);
 });

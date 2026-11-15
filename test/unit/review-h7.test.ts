@@ -6,7 +6,10 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import { test } from 'node:test';
 
-test('review H7: the anchor trigger is described with the words of Blueprint §2', () => {
+// Skipped until docs/REPORT.md is rendered after the final run, like the report checks.
+const opts = { skip: fs.existsSync('docs/REPORT.md') ? false : 'no docs/REPORT.md yet' };
+
+test('review H7: the anchor trigger is described with the words of Blueprint §2', opts, () => {
   for (const file of ['docs/REPORT.md', 'README.md']) {
     const text = fs.readFileSync(file, 'utf8');
     assert.doesNotMatch(text, /every 10 application\s+events/, file);
