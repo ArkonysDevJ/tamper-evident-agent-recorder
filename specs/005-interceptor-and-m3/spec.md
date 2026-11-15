@@ -53,13 +53,12 @@ the work package that implements them.
   reported. If time runs short in this work package, Cut 1 of §8 applies and M3 is reported as unmeasured.
 - **Pepper encoding:** `TEAR_HMAC_PEPPER` holds lowercase hex of at least 64 characters (32 bytes). The
   writer decodes it to bytes and rejects any other format.
-- **Writer start-up until spec 006 (provisional):** `ChainWriter.initializeAndOpen` creates the chain in a new,
-  empty namespace and, only when `initializeChain` returns `INITIALIZED`, starts the writer in that same session
-  (same flock and writerConn). Opening an existing chain still answers "not implemented"
-  (`RECOVERY_CLASSIFIER_NOT_IMPLEMENTED`). There is no other start-up path. Spec 006 replaces this with the full
-  §5.6 start-up.
+- **Writer start-up:** the provisional rule of this work package (the writer accepted events only in the
+  session that created the chain) was retired by spec 006. The interceptor now starts through `initializeChain`
+  and then the full §5.6 writer start-up under fresh exclusion, so it also continues an existing chain.
 - **Start-up order:** `Interceptor.start` reads and checks `TEAR_HMAC_PEPPER` first, so a missing or invalid
-  value writes nothing (not even `.writer.lock`). Only the public `pepper_id` is recorded, in the genesis row.
+  value writes nothing (not even `.writer.lock`); then `initializeChain`, then `ChainWriter.open`. Only the public
+  `pepper_id` is recorded, in the genesis row.
 - **Operation literals:** `tool_call` and `tool_result` use `execute_tool`, `agent_final_response` uses
   `invoke_agent`, `epistemic_pause` uses `tear.epistemic_pause`, and `human_resolution` uses
   `tear.human_resolution`.

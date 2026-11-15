@@ -148,10 +148,10 @@ test('001 AC-19 inspection-mapping', async (t) => {
     assert.equal(await snapshot(c), before, 'inspection must not mutate');
     return { code: String(code), entries: classifier.lastEntries };
   }
-  await t.test('without a classifier implementation the result is explicit', async () => {
+  await t.test('with the §5.6 classifier (spec 006) a clean existing chain is ALREADY_INITIALIZED', async () => {
     const c = newChain();
     await initializeChain(initOptions(c));
-    assert.equal(await codeOf(initializeChain(initOptions(c))), 'RECOVERY_CLASSIFIER_NOT_IMPLEMENTED');
+    assert.equal(await initializeChain(initOptions(c)), 'ALREADY_INITIALIZED');
   });
   for (const profile of ['base', 'cut1', 'cut1-2'] as const) {
     await t.test(`${profile}: E1 clean → ALREADY_INITIALIZED; E1 + .tmp, E2, E7 → RECOVERY_REQUIRED; E3, E6, E10 → inconsistent`, async () => {

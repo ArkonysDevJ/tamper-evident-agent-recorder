@@ -71,8 +71,8 @@ function requireActive(conn: WriterConn): void {
   if (conn.invalidated) throw new TearError('WRITER_INVALIDATED', 'writer invalidated during the TSA flow');
 }
 
-/** Builds the control row at k+1, admits it under Step 1 and commits it with the pending clear. */
-async function commitControl(d: AnchorFlowDeps, k: number, payload: JsonObject): Promise<void> {
+/** Builds the control row at k+1, admits it under Step 1 and commits it with the pending clear (one transaction). */
+export async function commitControl(d: AnchorFlowDeps, k: number, payload: JsonObject): Promise<void> {
   const head = d.checker.head;
   if (head === undefined || head.block.seq !== k) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'head moved');
   const block = newJsonObject() as Block;

@@ -10,8 +10,9 @@ first through FreeTSA and then DigiCert, under the fixed TEAR-TSA-01 profile. Th
 `certs/tsa_roots.pem`. A frozen fixture with real receipts from both TSAs is in `test/fixtures/frozen-m1/`, and the §7 tamper battery
 runs on copies of it (`npm run test:tamper`). A write-ahead interceptor (spec 005) records every tool call,
 epistemic pause, human resolution and final answer before it takes effect; it is exercised by a scripted
-reference agent, a test instrument with no LLM. Until spec 006, the writer starts only in the session that
-creates a new chain.
+reference agent, a test instrument with no LLM. Start-up reconciliation (spec 006) recovers an interrupted
+anchor or fails closed, `closeChain` seals a chain with its final anchor, and `buildEvidencePackage` produces a
+consistent log and namespace copy for offline verification.
 
 - What will be built, and what it will and will not prove: [`docs/BLUEPRINT.md`](docs/BLUEPRINT.md)
   (the only normative source).

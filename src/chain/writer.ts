@@ -7,8 +7,11 @@
 
 import type { ClientConfig } from 'pg';
 import { runAnchorFlow } from '../anchor/flow.js';
-import type { AnchorOutcome } from '../anchor/flow.js';
-import { autoAnchorHook } from '../anchor/trigger.js';
+import type { AnchorFlowDeps, AnchorOutcome } from '../anchor/flow.js';
+import { SET_PENDING_SQL, autoAnchorHook } from '../anchor/trigger.js';
+import { stateClassifier } from '../recovery/classifier.js';
+import { reconcile } from '../recovery/reconcile.js';
+import type { ReconcileDeps } from '../recovery/reconcile.js';
 import { DurableNamespace } from '../fs/durable.js';
 import type { DurableFsOps } from '../fs/durable.js';
 import { loadBundle } from '../pki/bundle.js';
@@ -17,8 +20,6 @@ import { retainedTsas } from '../tsa/transport.js';
 import type { TsaEndpoint } from '../tsa/transport.js';
 import { bundleSha256, entryHashOf } from '../crypto/digests.js';
 import { TearError } from '../errors.js';
-import { inventoryNamespace } from '../fs/inventory.js';
-import { fsyncDirectory } from '../fs/namespace.js';
 import type { StatfsType } from '../fs/namespace.js';
 import { CanonicalizationError, canonicalize } from '../json/jcs.js';
 import { newJsonObject } from '../json/strict-json.js';
@@ -28,14 +29,14 @@ import { SerialQueue } from '../util/serial-queue.js';
 import { acquireExclusion, releaseExclusion } from './exclusion.js';
 import type { Exclusion } from './exclusion.js';
 import { ZERO_HASH } from './ids.js';
-import { INSERT_EVENT_SQL, initializeUnderExclusion, requestedGenesis } from './initialize.js';
-import type { InitializeOptions } from './initialize.js';
-import { notImplementedClassifier } from './interfaces.js';
-import type { AnchorHook, PendingAnchor, RecoveryClassifier } from './interfaces.js';
+import { INSERT_EVENT_SQL } from './initialize.js';
+import type { AnchorHook, PendingAnchor, RecoveryClassifier, RecoveryState } from './interfaces.js';
+import { retiresCloseRetry } from './profile.js';
 import type { CutProfile } from './profile.js';
 import { isApplicationEventType } from './schema.js';
 import type { Block } from './schema.js';
 import { loadChain, validateEvents, validateState } from './state.js';
+import type { ChainState } from './state.js';
 import type { Step1Checker, Step1Failure } from './step1.js';
 
 export interface WriterOptions {
@@ -70,6 +71,17 @@ export interface AppendResult {
   /** Set when this append triggered an anchor; the append resolves only after it settled. */
   readonly anchor?: AnchorOutcome;
 }
+
+export type CloseLiteral = 'CLOSED_NO_ANCHOR' | 'ANCHORED_FIRST_ATTEMPT' | 'ANCHORED_AFTER_PREVIOUS_FAILURE' | 'UNANCHORED_FAILURE';
+
+export interface CloseResult {
+  readonly result: CloseLiteral;
+  readonly branch: 'B0' | 'B1' | 'B2' | 'B3';
+  /** Set when the close contacted a TSA. */
+  readonly anchor?: AnchorOutcome;
+}
+
+const SEAL_SQL = 'UPDATE tear_chain_state SET chain_closed = true WHERE chain_id = $1::uuid RETURNING chain_id';
 
 const defaultExit = (cause: unknown): void => {
   process.stderr.write(`tear writer: drain-and-exit: ${cause instanceof Error ? cause.message : String(cause)}\n`);
@@ -135,7 +147,9 @@ export class ChainWriter {
       throw new TearError('TSA_BUNDLE_UNLOADABLE', (err as Error).message);
     }
     const ex = await acquireExclusion(opts);
+    let writer: ChainWriter | null = null;
     try {
+      // §5.6 step 1: state and every event column, loaded and validated on writerConn under exclusion.
       const loaded = await loadChain(ex.conn, opts.chainId);
       if (loaded.events.length === 0 && loaded.stateRow === null) {
         throw new TearError('CHAIN_NOT_INITIALIZED', opts.chainId);
@@ -145,76 +159,56 @@ export class ChainWriter {
       }
       const checker = validateEvents(loaded.events, opts.chainId, bundleSha256(opts.bundleBytes));
       const state = validateState(loaded.stateRow, checker);
-      const entries = inventoryNamespace(ex.nsPath);
-      const classifier = opts.classifier ?? notImplementedClassifier;
-      const classification = await classifier.classify({
-        chainId: opts.chainId,
-        nsPath: ex.nsPath,
-        rows: checker.accepted,
-        state,
-        entries,
-        nowNs: BigInt((opts.clock ?? Date.now)()) * 1_000_000n,
-        profile: opts.profile,
-      });
-      if (classification.kind === 'not_implemented') {
-        throw new TearError('RECOVERY_CLASSIFIER_NOT_IMPLEMENTED', 'E1–E10 classification is not implemented yet');
-      }
-      if (classification.kind === 'inconsistent') {
-        throw new TearError('RECONCILIATION_STATE_INCONSISTENT', classification.reason);
-      }
-      if (classification.state !== 'E1' || entries.length > 0 || state.pending !== null) {
-        throw new TearError('RECONCILIATION_NOT_IMPLEMENTED', `start-up from ${classification.state} needs §5.6 repair`);
-      }
-      // Directory durability barrier before accepting traffic (§5.6).
-      if (ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
-      fsyncDirectory(ex.nsPath);
-      return new ChainWriter(ex, checker, opts, bundle, state.chainClosed);
+      writer = new ChainWriter(ex, checker, opts, bundle, state.chainClosed);
+      const result = await reconcile(writer.reconcileDeps(state));
+      writer.startedFrom = result.from;
+      return writer;
     } catch (err) {
-      await releaseExclusion(ex);
+      if (writer !== null) await writer.release();
+      else await releaseExclusion(ex);
       throw err;
     }
   }
 
-  /**
-   * Creates the chain in a new, empty namespace and starts the writer in the
-   * same session (same flock and writerConn) when initializeChain returns
-   * INITIALIZED.
-   *
-   * Implementation choice (not normative), provisional until spec 006: the
-   * writer accepts events only in the session that created the chain. Any
-   * existing chain (ALREADY_INITIALIZED, RECOVERY_REQUIRED or an inspection
-   * error) is refused: opening it needs the §5.6 start-up of spec 006.
-   */
-  static async initializeAndOpen(opts: WriterOptions & Omit<InitializeOptions, keyof WriterOptions | 'classifier'>): Promise<ChainWriter> {
-    const initOpts: InitializeOptions = { ...opts, classifier: notImplementedClassifier };
-    const requested = requestedGenesis(initOpts);
-    let bundle: LoadedBundle;
-    try {
-      bundle = loadBundle(opts.bundleBytes);
-    } catch (err) {
-      throw new TearError('TSA_BUNDLE_UNLOADABLE', (err as Error).message);
-    }
-    const ex = await acquireExclusion(opts);
-    try {
-      const result = await initializeUnderExclusion(ex, initOpts, requested);
-      if (result !== 'INITIALIZED') {
-        throw new TearError('WRITER_START_NOT_IMPLEMENTED', `${result}: opening an existing chain needs the §5.6 start-up`);
-      }
-      // Same session: load and validate exactly what this session committed.
-      const loaded = await loadChain(ex.conn, opts.chainId);
-      if (loaded.stateRow === null) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'state row missing after creation');
-      const checker = validateEvents(loaded.events, opts.chainId, bundleSha256(opts.bundleBytes));
-      const state = validateState(loaded.stateRow, checker);
-      if (checker.length !== 1 || state.pending !== null || state.chainClosed || inventoryNamespace(ex.nsPath).length > 0) {
-        throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'a newly created chain must hold only its genesis');
-      }
-      if (ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
-      fsyncDirectory(ex.nsPath);
-      return new ChainWriter(ex, checker, opts, bundle, false);
-    } catch (err) {
-      await releaseExclusion(ex);
-      throw err;
-    }
+  /** The §5.6 state found at start-up (after .tmp deletion). */
+  startedFrom: RecoveryState | null = null;
+
+  private flowDeps(): AnchorFlowDeps {
+    return {
+      chainId: this.opts.chainId,
+      conn: this.ex.conn,
+      files: this.files,
+      checker: this.checker,
+      bundle: this.bundle,
+      tsas: this.opts.tsas ?? retainedTsas(),
+      clock: this.opts.clock ?? Date.now,
+      fatal: (cause) => this.fatal(cause),
+    };
+  }
+
+  private reconcileDeps(state: ChainState): ReconcileDeps {
+    return {
+      ...this.flowDeps(),
+      nsPath: this.ex.nsPath,
+      profile: this.opts.profile,
+      classifier: this.opts.classifier ?? stateClassifier,
+      state,
+      view: (st, entries) => ({
+        chainId: this.opts.chainId,
+        nsPath: this.ex.nsPath,
+        rows: this.checker.accepted,
+        state: st,
+        entries,
+        nowNs: BigInt((this.opts.clock ?? Date.now)()) * 1_000_000n,
+        profile: this.opts.profile,
+        bundle: this.bundle,
+      }),
+      reloadState: async () => {
+        const loaded = await loadChain(this.ex.conn, this.opts.chainId);
+        if (loaded.stateRow === null) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'state row missing');
+        return validateState(loaded.stateRow, this.checker);
+      },
+    };
   }
 
   get invalidated(): boolean {
@@ -310,24 +304,80 @@ export class ChainWriter {
     // Implementation choice: if the flow aborts, this append rejects although row k is committed;
     // the caller treats it as unconfirmed (the tool is not run, nothing is delivered).
     try {
-      const anchor = await runAnchorFlow(
-        {
-          chainId: this.opts.chainId,
-          conn,
-          files: this.files,
-          checker: this.checker,
-          bundle: this.bundle,
-          tsas: this.opts.tsas ?? retainedTsas(),
-          clock: this.opts.clock ?? Date.now,
-          fatal: (cause) => this.fatal(cause),
-        },
-        pending,
-      );
+      const anchor = await runAnchorFlow(this.flowDeps(), pending);
       return { ...result, anchor };
     } catch (err) {
       this.fatal(err);
       throw err;
     }
+  }
+
+  /**
+   * closeChain (§5.8): enqueued behind any pending anchor; seals the chain
+   * durably (or confirms it is sealed), then evaluates B0–B3.
+   */
+  closeChain(opts: { retry?: boolean } = {}): Promise<CloseResult> {
+    return this.queue.run(() => this.closeNow(opts.retry === true));
+  }
+
+  private async closeNow(retry: boolean): Promise<CloseResult> {
+    if (this.ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
+    if (!this.sealed) {
+      const outcome = await this.ex.conn.mutate(async () => {
+        const rows = await this.ex.conn.query(SEAL_SQL, [this.opts.chainId]);
+        if (rows.length !== 1) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'state row missing');
+      });
+      if (outcome !== 'committed') {
+        const cause = new TearError(outcome === 'unknown' ? 'COMMIT_OUTCOME_UNKNOWN' : 'COMMIT_ROLLED_BACK', 'sealing the chain');
+        this.fatal(cause);
+        throw cause;
+      }
+      this.sealed = true;
+    }
+    const rows = this.checker.accepted;
+    const h = rows.length - 1;
+    let lastApp = 0;
+    let maxAnchored = -1;
+    for (const r of rows) {
+      const t = r.block.payload['event_type'];
+      if (isApplicationEventType(t)) lastApp = r.block.seq;
+      if (t === 'checkpoint_anchored') maxAnchored = Math.max(maxAnchored, r.block.payload['anchored_seq'] as number);
+    }
+    // B0: only genesis.
+    if (h === 0) return { result: 'CLOSED_NO_ANCHOR', branch: 'B0' };
+    // B1: already anchored up to the last application event.
+    if (maxAnchored >= lastApp) {
+      const afterFailure = rows[maxAnchored]?.block.payload['event_type'] === 'checkpoint_failed' && !retiresCloseRetry(this.opts.profile);
+      return { result: afterFailure ? 'ANCHORED_AFTER_PREVIOUS_FAILURE' : 'ANCHORED_FIRST_ATTEMPT', branch: 'B1' };
+    }
+    const head = rows[h]!;
+    const headFailed = head.block.payload['event_type'] === 'checkpoint_failed';
+    // B3 without retry (or with B3 retired under Cut 2): no TSA call.
+    if (headFailed && (!retry || retiresCloseRetry(this.opts.profile))) return { result: 'UNANCHORED_FAILURE', branch: 'B3' };
+    const mode = headFailed ? 'close_retry' : 'close';
+    const outcome = await this.ex.conn.mutate(async () => {
+      const set = await this.ex.conn.query(SET_PENDING_SQL, [this.opts.chainId, String(h), head.entryHash, head.block.ts, mode]);
+      if (set.length !== 1) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'pending anchor already set');
+    });
+    if (outcome !== 'committed') {
+      const cause = new TearError(outcome === 'unknown' ? 'COMMIT_OUTCOME_UNKNOWN' : 'COMMIT_ROLLED_BACK', `close pending ${String(h)}`);
+      this.fatal(cause);
+      throw cause;
+    }
+    let anchor: AnchorOutcome;
+    try {
+      anchor = await runAnchorFlow(this.flowDeps(), { seq: h, entryHash: head.entryHash, ts: head.block.ts });
+    } catch (err) {
+      this.fatal(err);
+      throw err;
+    }
+    const branch = headFailed ? 'B3' : 'B2';
+    if (anchor.kind === 'failed') return { result: 'UNANCHORED_FAILURE', branch, anchor };
+    return { result: headFailed ? 'ANCHORED_AFTER_PREVIOUS_FAILURE' : 'ANCHORED_FIRST_ATTEMPT', branch, anchor };
+  }
+
+  get sealedChain(): boolean {
+    return this.sealed;
   }
 
   /** True once drain-and-exit started; the writer admits nothing more. */

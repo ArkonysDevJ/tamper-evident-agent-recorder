@@ -23,7 +23,8 @@ import { formatTimestamp } from '../../src/time/timestamps.js';
 import { verifyOffline } from '../../src/verify/verify.js';
 import { interceptedRecorder, runAgent } from '../agent/scripted-agent.js';
 import { testPki } from '../helpers/pki.js';
-import { admin, bundleBytes, codeOf, ensureSchema, initOptions, newChain, pgConfig, rowCount } from '../helpers/pg.js';
+import { admin, bundleBytes, codeOf, ensureSchema, initOptions, newChain, pgConfig, rowCount, writerOptions } from '../helpers/pg.js';
+import { stateClassifier } from '../../src/recovery/classifier.js';
 import { testTsa } from '../helpers/test-tsa.js';
 
 before(ensureSchema);
@@ -40,6 +41,7 @@ interface Setup {
   bundle: Uint8Array;
   exits: unknown[];
   runs: { name: string; n: number }[];
+  initialized: string;
 }
 
 /** A new chain started in the creation session, with a fresh pepper and the test PKI. */
@@ -49,7 +51,7 @@ async function setup(o: { hook?: AnchorHook; anchors?: boolean } = {}): Promise<
   const nsPath = provisionNamespace(root, chainId);
   const pepperHex = randomBytes(32).toString('hex');
   const exits: unknown[] = [];
-  const { interceptor, writer } = await Interceptor.start(
+  const { interceptor, writer, initialized } = await Interceptor.start(
     {
       checkpointsRoot: root,
       chainId,
@@ -60,12 +62,12 @@ async function setup(o: { hook?: AnchorHook; anchors?: boolean } = {}): Promise<
       profile: 'base',
       anchorHook: o.hook ?? autoAnchorHook(o.anchors === false ? 0 : Number.POSITIVE_INFINITY),
       tsas: [testTsa('test-tsa', pki)],
-      exit: (c) => exits.push(c),
+      exit: (c: unknown) => exits.push(c),
     },
     { [PEPPER_ENV]: pepperHex },
   );
   const runs: { name: string; n: number }[] = [];
-  return { root, chainId, nsPath, writer, icp: interceptor, pepperHex, bundle: pki.bundle, exits, runs };
+  return { root, chainId, nsPath, writer, icp: interceptor, pepperHex, bundle: pki.bundle, exits, runs, initialized };
 }
 
 /** A tool with an observable trace. */
@@ -111,21 +113,27 @@ function failAt(at: number): AnchorHook {
   };
 }
 
-test('005 start-up in the creation session (provisional, until spec 006)', async (t) => {
-  await t.test('a new namespace: INITIALIZED and the writer accepts events in the same session', async () => {
+test('005 start-up through initializeChain and the §5.6 writer start (spec 006)', async (t) => {
+  await t.test('a new namespace: INITIALIZED, then the writer starts under fresh exclusion', async () => {
     const s = await setup({ anchors: false });
+    assert.equal(s.initialized, 'INITIALIZED');
     await s.icp.epistemicPause('task-1', 'first', []);
     assert.equal(await rowCount(s.chainId), 2);
     await s.writer.close();
   });
-  await t.test('an existing chain is refused: opening it still needs the §5.6 start-up', async () => {
+  await t.test('an existing chain: ALREADY_INITIALIZED, and the writer continues it', async () => {
     const c = newChain();
     await initializeChain(initOptions(c));
-    const code = await codeOf(
-      ChainWriter.initializeAndOpen({ ...initOptions(c), anchorHook: autoAnchorHook(0), tsas: [] }),
+    const first = await ChainWriter.open({ ...writerOptions(c), classifier: stateClassifier });
+    await first.close();
+    const { interceptor, writer, initialized } = await Interceptor.start(
+      { ...writerOptions(c), classifier: stateClassifier, genesisTs: c.genesisTs, pepperId: 'test-pepper' },
+      { [PEPPER_ENV]: randomBytes(32).toString('hex') },
     );
-    assert.equal(code, 'RECOVERY_CLASSIFIER_NOT_IMPLEMENTED');
-    assert.equal(await codeOf(ChainWriter.open({ checkpointsRoot: c.root, chainId: c.chainId, bundleBytes, pg: pgConfig, profile: 'base' })), 'RECOVERY_CLASSIFIER_NOT_IMPLEMENTED');
+    assert.equal(initialized, 'ALREADY_INITIALIZED');
+    await interceptor.epistemicPause('task-1', 'resumed', []);
+    assert.equal(writer.headSeq, 1);
+    await writer.close();
   });
 });
 

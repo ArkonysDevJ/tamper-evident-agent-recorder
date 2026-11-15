@@ -174,6 +174,11 @@ export class DurableNamespace {
     });
   }
 
+  /** Directory durability barrier (§5.6): open the chain directory, fsync it, close it; guarded and queued. */
+  directoryBarrier(): Promise<void> {
+    return this.run(() => this.fsyncDirectory());
+  }
+
   /** Resolves once every queued or running mutation has settled. */
   async drain(): Promise<void> {
     await this.queue.drain();

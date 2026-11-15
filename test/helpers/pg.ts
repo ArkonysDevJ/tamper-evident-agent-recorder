@@ -101,8 +101,7 @@ export function writerOptions(c: TestChain, extra: Partial<WriterOptions> = {}):
     bundleBytes,
     pg: pgConfig,
     profile: 'base',
-    classifier: cleanE1ForTests,
-    // Data-core tests never anchor; spec 003 tests pass the automatic hook and test TSAs.
+    // The writer's own §5.6 classifier (src/recovery/classifier.ts). Data-core tests never anchor; spec 003 tests pass the automatic hook and test TSAs.
     anchorHook: noAnchorHook,
     tsas: [],
     ...extra,

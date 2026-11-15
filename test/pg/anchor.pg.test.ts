@@ -271,7 +271,8 @@ test('003 AC-8 publication-failure', async (t) => {
   const points: [string, RecordingFs['failOn'], string[], string | null][] = [
     ['.tsq write', { op: 'write', nth: 1, code: 'EIO' }, ['10.tsq.tmp'], '10'],
     ['.tsr rename', { op: 'rename', nth: 2, code: 'EIO' }, ['10.tsq', '10.tsr.tmp'], '10'],
-    ['.anchor.json directory fsync', { op: 'fsync', nth: 6, code: 'EIO' }, ['10.anchor.json', '10.tsq', '10.tsr'], '10'],
+    // fsync 1 is the start-up directory barrier (§5.6); then .tsq (2, 3), .tsr (4, 5), .anchor.json file (6) and directory (7).
+    ['.anchor.json directory fsync', { op: 'fsync', nth: 7, code: 'EIO' }, ['10.anchor.json', '10.tsq', '10.tsr'], '10'],
     ['.tsq unlink after the confirmed transition', { op: 'unlink', nth: 1, code: 'EIO' }, ['10.anchor.json', '10.tsq', '10.tsr'], null],
   ];
   for (const [label, failOn, left, pending] of points) {
