@@ -40,3 +40,32 @@ B0–B3, the evidence package for offline verification, and fault injection at e
 ## 5. Dependencies
 
 Specs 001, 003 and 008. The cut profile is selected as recorded in spec 001 (implementation choice).
+
+## Implementation choices (not normative)
+
+Recorded here and declared in the report of the work package that implements them.
+
+- **Where reconciliation runs:** inside `ChainWriter.open`, under the writer's own exclusion, after full validation
+  (§5.6 step 1) and before the writer is returned. A start-up that fails releases writerConn and flock; a failed
+  namespace mutation also runs drain-and-exit (§5.5).
+- **Classifier:** `src/recovery/classifier.ts`, behind the spec 001 interface, used by both `initializeChain`
+  inspection and writer start-up. It validates packages with the verifier's Step 2 checks
+  (`src/verify/anchors.ts`), so the recoverer is the second consumer of the receipt checks (spec 003 AC-22).
+  Step 3 contradictions and missing committed evidence are reported as inconsistent before a state is chosen.
+- **E2 condition:** the single `.tsq` is resolved when row m+1 is a `checkpoint_failed(target_seq = m)` or a
+  `checkpoint_anchored(anchored_seq = m)` whose package is confirmed.
+- **After a repair:** the state row is reloaded on writerConn and the view is classified again; anything other than
+  a clean E1 (no pending anchor, no `.tmp` or `.tsq`) fails `RECONCILIATION_STATE_INCONSISTENT`.
+- **Start-up directory barrier:** run through the same guarded file queue as every namespace mutation, so it
+  fails closed under the same rules.
+- **E8:** after the residue is deleted, the TSA flow runs again with a fresh nonce, from the same queue slot; its
+  outcome (anchored or `checkpoint_failed`) resolves the pending anchor.
+- **`closeChain` result:** `{ result, branch }`, plus the anchor outcome when a TSA was contacted. Sealing is its own
+  durable transaction; a pending close anchor uses `pending_mode` `close` (B2) or `close_retry` (B3).
+- **Cut profiles:** from Cut 2 on, B3 is retired (a retry request returns `UNANCHORED_FAILURE` without contacting a
+  TSA) and B1 always returns `ANCHORED_FIRST_ATTEMPT`. From Cut 3 on, any `.tmp`, `.tsq` or pending anchor fails
+  start-up and nothing is deleted.
+- **Evidence package:** `buildEvidencePackage` copies complete pairs (read without following symlinks), then
+  exports with the read-only exporter. It refuses an existing output directory.
+- **Bundle at inspection:** `initializeChain` loads the requested bundle to validate existing packages; a bundle
+  that fails loading stops inspection with `TSA_BUNDLE_UNLOADABLE`.

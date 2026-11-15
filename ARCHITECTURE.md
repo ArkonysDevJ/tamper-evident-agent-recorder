@@ -39,7 +39,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | implemented; recovery of interrupted anchors is spec 006 |
 | Tamper battery | §7 | 004 | implemented: 15/15 primary results, X1 and X2 match §7 |
 | Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | implemented with a scripted reference agent; M3 measured |
-| Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
+| Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | implemented (base profile; cut profiles supported) |
 | Final report | §8, §9 | 007 | not written |
 
 ## Data core (spec 001)
@@ -50,7 +50,7 @@ initializeChain / ChainWriter.open
        └─ WriterConn.open: SET synchronous_commit=on → encoding + durability check → pg_try_advisory_lock
   └─ loadChain (one read-only snapshot on writerConn)
        └─ checkSqlRow (block_json authority, mirrors) → Step1Checker (rules 1.1–1.10) → validateState
-  └─ RecoveryClassifier (interface; spec 006)       ← default: "not implemented"
+  └─ §5.6 reconciliation (spec 006): classify E1–E10 → the state's action → directory barrier
 ChainWriter.append (serial queue)
   └─ build block (ts = max(now, head ts)) → Step1Checker.check (admission, EVENT_REJECTED)
   └─ writerConn.mutate: recheck durability → INSERT → AnchorHook (automatic trigger, spec 003) → COMMIT
@@ -73,7 +73,7 @@ exportChain (own read-only REPEATABLE READ connection) → checkSqlRow + Step 1 
 | `src/chain/initialize.ts` | `initializeChain`: atomic creation, non-mutating inspection, step 4 mapping | §5.3a |
 | `src/chain/writer.ts` | `ChainWriter`: start-up, admission, durable append | §5.3, §5.4 |
 | `src/chain/export.ts` | Canonical SQL → `events.jsonl` export | §5.3 |
-| `src/chain/interfaces.ts` | `RecoveryClassifier` (default: not implemented) and `AnchorHook` (writer default: the automatic trigger) | §5.6, §5.7 |
+| `src/chain/interfaces.ts` | `RecoveryClassifier` (implemented in `src/recovery/classifier.ts`) and `AnchorHook` (writer default: the automatic trigger) | §5.6, §5.7 |
 | `src/chain/profile.ts` | Cut profiles and whether automatic recovery applies | §8 |
 | `src/db/writer-conn.ts` | The single writer session: never pooled, never reconnected, commit outcome | §5.3, §5.4 |
 | `src/db/settings.ts` | Encoding and durability preconditions | §5.3, §5.4 |
@@ -144,10 +144,33 @@ rejection rule and checked against `openssl` on every real receipt and certifica
 had no external review. No cryptographic primitive is implemented here: hashes, signatures and key loading use
 `node:crypto`.
 
+## Recovery, close and evidence package (spec 006)
+
+```text
+ChainWriter.open (under flock + advisory lock, on writerConn)
+  1. load and validate every row and the state row (§5.6 step 1)
+  2. inventory; base: durable-delete recognized .tmp files (Cut 3: any .tmp/.tsq fails)
+  3. classify E1–E10 (src/recovery/classifier.ts), validating packages with the verifier's Step 2
+  4. the state's action: E2 delete .tsq · E4 barrier, clear pending · E5 delete residue, clear pending ·
+     E7 barrier, control + clear (one transaction), delete .tsq · E8 delete residue, TSA flow again ·
+     E9 delete residue, checkpoint_failed anchor_window_expired · E3/E6/E10 fail closed
+  5. reclassify: clean E1 required → directory fsync barrier → traffic (sealed: closeChain only)
+initializeChain on an existing chain: the same classification, never an action (RECOVERY_REQUIRED or ALREADY_INITIALIZED)
+closeChain({retry}): queue → seal → B0 CLOSED_NO_ANCHOR · B1 ANCHORED_* · B2 anchor head · B3 retry anchors the checkpoint_failed head
+buildEvidencePackage: copy complete .tsr + .anchor.json pairs → then the SQL export
+```
+
+| Module | What it does | Blueprint |
+| --- | --- | --- |
+| `src/recovery/classifier.ts` | E1–E10 classification, steps 3–5, non-mutating | §5.6, §5.3a |
+| `src/recovery/reconcile.ts` | Start-up reconciliation: the action of each state, the final barrier | §5.6 |
+| `src/chain/writer.ts` (`open`, `closeChain`) | Start-up on an existing chain; B0–B3 | §5.6, §5.8 |
+| `src/chain/evidence.ts` | Evidence package for offline verification | §5.3 |
+
 ## Interceptor and M3 (spec 005)
 
 ```text
-Interceptor.start: readPepper(TEAR_HMAC_PEPPER) → ChainWriter.initializeAndOpen (new chain, same session)
+Interceptor.start: readPepper(TEAR_HMAC_PEPPER) → initializeChain → ChainWriter.open (§5.6 start-up)
 agent step                      record (confirmed COMMIT first)                    then
   tool call      → beginCall    tool_call  {tool_name, call_id, task_id, args_hmac} → the tool runs
                  → completeCall tool_result {call_id, task_id, error_type, result_digest, summary} → result delivered
@@ -161,7 +184,6 @@ any failed or unknown COMMIT: the step stops; nothing runs, nothing is delivered
 | --- | --- | --- |
 | `src/interceptor/pepper.ts` | `TEAR_HMAC_PEPPER`: lowercase hex, at least 32 bytes; never echoed | §4.4 |
 | `src/interceptor/interceptor.ts` | Write-ahead recording, adapter JSON domain, digests, failed-tool value, start-up order | §2, §4.3, §4.4, §5.4 |
-| `src/chain/writer.ts` (`initializeAndOpen`) | Writer start in the session that created the chain (provisional until spec 006) | §5.3a |
 
 | File | What it does |
 | --- | --- |

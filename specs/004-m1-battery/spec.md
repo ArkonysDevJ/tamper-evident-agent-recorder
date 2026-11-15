@@ -80,9 +80,9 @@ Recorded here and declared in the report of the work package that implements the
 | Vector (§7) | Where |
 | --- | --- |
 | Initialization | spec 001 (`npm run test:pg`) |
-| Existing-chain inspection (E2, E7, `.tmp`, defensive E4/E5, E8/E9) | pending: spec 006 |
-| Inspection error precedence | spec 001 for genesis conflicts and invalid chains; E3/E6/E10 parts pending: spec 006 |
-| Call pairing, outside the pause-only M1 fixture | specs 001 and 002 (Step 1); adapter pairing pending: spec 005 |
+| Existing-chain inspection (E2, E7, `.tmp`, defensive E4/E5, E8/E9) | spec 006 |
+| Inspection error precedence | spec 001 for genesis conflicts and invalid chains; E3/E6/E10 parts in spec 006 |
+| Call pairing, outside the pause-only M1 fixture | specs 001 and 002 (Step 1); adapter pairing in spec 005 |
 | SQL durability configuration, SQL representation, single-session handoff | spec 001 |
 | SQL versus JSONL validation; empty-file and row vectors | spec 002 |
 | Root loading; pinned-profile, bundle grammar, inventory, TEAR-TSA-01, digest identifiers, digest-set, extension and stage-precedence vectors | spec 003 (the explicit default SHA-256 `ESSCertIDv2` vector is known debt) |
@@ -90,6 +90,6 @@ Recorded here and declared in the report of the work package that implements the
 | Bundle custody (auditor procedure) | this battery |
 | Control metadata (final control, impossible target, renumbered T2) | this battery and spec 003 |
 | Revalidation of frozen and replacement receipts | this battery |
-| E1 durability barrier, E7 crash, missing committed package in the writer | pending: spec 006 (the offline X1 part runs here) |
-| Repeated close after restart; Cut 2 and Cut 3 profile vectors | pending: spec 006 |
+| E1 durability barrier, E7 crash, missing committed package in the writer | spec 006 (the offline X1 part runs here) |
+| Repeated close after restart; Cut 2 and Cut 3 profile vectors | spec 006 |
 | Canonical output; accuracy absent and present; zero, one and several anchors | specs 002 and 003 |
