@@ -103,7 +103,7 @@ extra('control-metadata: final control altered, tail recomputed', 'CHECKPOINT_ME
   e.setPayloadField(41, 'tsr_sha256', 'f'.repeat(64));
   e.recompute(41);
   const r = e.verify();
-  return { measured: summary(r.exitCode, r.stdout), match: r.stdout === 'CHECKPOINT_METADATA_MISMATCH 41\n' };
+  return { measured: summary(r.exitCode, r.stdout), match: r.exitCode === 1 && r.stdout === 'CHECKPOINT_METADATA_MISMATCH 41\n' && r.stderr === '' };
 });
 
 extra('control-metadata: impossible target at the final control', 'CONTROL_EVENT_INVALID only after packages pass (41)', () => {
@@ -111,7 +111,7 @@ extra('control-metadata: impossible target at the final control', 'CONTROL_EVENT
   e.setPayloadField(41, 'anchored_seq', 39);
   e.recompute(41);
   const r = e.verify();
-  return { measured: summary(r.exitCode, r.stdout), match: r.stdout === 'CONTROL_EVENT_INVALID 41\n' };
+  return { measured: summary(r.exitCode, r.stdout), match: r.exitCode === 1 && r.stdout === 'CONTROL_EVENT_INVALID 41\n' && r.stderr === '' };
 });
 
 extra('control-metadata: renumbered T2 still fails divergence first', 'CHECKPOINT_DIVERGENCE 30', () => {
