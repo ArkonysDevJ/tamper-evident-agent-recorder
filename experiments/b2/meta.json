@@ -1,0 +1,9 @@
+{
+  "description": "Experiment B2 artifacts (real TSAs), recorded once; analyzed offline by npm run test:experiments.",
+  "chain_id": "25297990-a071-4401-a536-def236774d94",
+  "events": 150,
+  "stamps": {
+    "freetsa": 17
+  },
+  "close": "ANCHORED_FIRST_ATTEMPT"
+}

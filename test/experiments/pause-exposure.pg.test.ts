@@ -152,9 +152,10 @@ test('009 B2 pause exposure (stored real-TSA artifacts, offline analysis)', (t) 
   check('B2 all pauses covered after closeChain', 'all covered', `${String(afterClose.covered.length)}/${String(afterClose.pauses)}`, afterClose.uncovered.length === 0);
   const rows = readLog(path.join(B2_DIR, 'post-close', 'events.jsonl'));
   sections.push(
-    '## B2 · first 150 application events, real TSAs (FreeTSA, then DigiCert on failure)',
+    '## B2 · first 150 application events, real TSAs (retained order: FreeTSA, then DigiCert on failure)',
     '',
-    `Application events: ${String(meta.events)}; rows after close: ${String(rows.length)}. Close: ${meta.close}. Time-stamp requests: ${Object.entries(meta.stamps).map(([k, v]) => `${k} ${String(v)}`).join(', ')}.`,
+    `Application events: ${String(meta.events)}; rows after close: ${String(rows.length)}. Close: ${meta.close}. Time-stamp requests: ${Object.entries(meta.stamps).map(([k, v]) => `${k} ${String(v)}`).join(', ')}${meta.stamps['digicert'] === undefined ? '; DigiCert was not used (no primary failure)' : ''}.`,
+    'Exposure in time can be negative: FreeTSA signs genTime in whole seconds, so a token issued within the same second as the pause carries an earlier genTime (the §5.7 predicate allows down to -5 s).',
     '',
     ...exposureLines('Before close', before, true),
     ...exposureLines('After closeChain', afterClose, true),
