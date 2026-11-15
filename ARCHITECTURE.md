@@ -37,7 +37,7 @@ The design itself is in `docs/BLUEPRINT.md`.
 | Verifier: CLI, framing and output | §6 Step 1, §6b | 002 | implemented |
 | Durable file primitives | §5.5 | 008 | implemented; used by the anchor flow |
 | Anchors: RFC 3161 client, TEAR-TSA-01 profile, package checks, coverage, frozen fixture | §5.7, §6 Steps 2–3, §6a, §7 | 003 | implemented; recovery of interrupted anchors is spec 006 |
-| Tamper battery | §7 | 004 | not implemented |
+| Tamper battery | §7 | 004 | implemented: 15/15 primary results, X1 and X2 match §7 |
 | Interceptor wired to one agent; overhead | §2, §5.4, §7 M3 | 005 | not implemented |
 | Recovery, close, evidence package | §5.6, §5.8, §5.3 | 006 | not implemented |
 | Final report | §8, §9 | 007 | not written |
@@ -144,6 +144,22 @@ rejection rule and checked against `openssl` on every real receipt and certifica
 had no external review. No cryptographic primitive is implemented here: hashes, signatures and key loading use
 `node:crypto`.
 
+## Tamper battery (spec 004)
+
+```text
+npm run test:tamper
+  for each §7 case: Evidence (copy of test/fixtures/frozen-m1) → exact mutation (A2a / A2b) → temp dir
+    → verifyOffline → compare with the §7 result copied into the case → test-results/tamper-results.md
+```
+
+| File | What it does |
+| --- | --- |
+| `test/tamper/model.ts` | The in-memory copy of the exported log and namespace, and the A2a/A2b operations |
+| `test/tamper/cases.ts` | T1–T7 under A2a and A2b, X1 and X2, with their §7 results |
+| `test/tamper/receipts.ts` | Stored real receipts for T6a and T6b |
+| `test/tamper/battery.test.ts` | The runner, the additional vectors and the results table |
+| `test/fixture-tools/build-tamper-receipts.ts` | One-time request of the T6a and T6b receipts (`npm run tamper:receipts`) |
+
 ## Local verifier (spec 002, Steps 2–3 from spec 003)
 
 ```text
@@ -188,5 +204,7 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `test/pg/` | Tests against a local PostgreSQL (`npm run test:pg`) |
 | `test/helpers/` | Chain builder, PostgreSQL helpers, verifier input files, a recording and fault-injecting `fs` double, child processes for lock and handoff tests, a test PKI that builds certificates and RFC 3161 receipts, in-process test TSAs |
 | `test/fixtures/frozen-m1/` | The frozen M1 fixture: `events.jsonl`, the copied namespace with real FreeTSA and DigiCert receipts, and `manifest.json` (digests, serials, genTime, accuracy, optional fields) |
-| `test/fixture-tools/` | The one-time fixture builder (`npm run fixture:build`; local PostgreSQL and both TSAs) |
+| `test/fixture-tools/` | One-time builders: the fixture (`npm run fixture:build`; local PostgreSQL and both TSAs) and the T6a/T6b receipts (`npm run tamper:receipts`; both TSAs) |
+| `test/fixtures/tamper-receipts/` | The stored real receipts for T6a and T6b, with their manifest and the T6b base time |
+| `test/tamper/` | The tamper battery (`npm run test:tamper`; offline) |
 | `test/local/` | Local checks with external tools (`npm run test:local`): the DER reader against `openssl` |

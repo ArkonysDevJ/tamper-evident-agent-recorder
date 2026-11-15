@@ -21,3 +21,5 @@ jobs:
       # Type-checks, builds and runs the tests that need no PostgreSQL.
       # Tests under test/pg run locally with `npm run test:pg`.
       - run: npm test
+      # The §7 tamper battery on copies of the frozen fixture; offline.
+      - run: npm run test:tamper
