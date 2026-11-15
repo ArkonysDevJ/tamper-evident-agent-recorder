@@ -24,7 +24,9 @@
     "m3:render": "npm run build && node dist/test/m3/render-m3.js",
     "dataset:generate": "npm run build && node dist/scripts/generate-dataset.js",
     "test:experiments": "npm run build && node --test --test-concurrency=1 \"dist/test/experiments/**/*.test.js\"",
-    "experiments:b2": "npm run build && node dist/test/experiments/run-b2.js"
+    "experiments:b2": "npm run build && node dist/test/experiments/run-b2.js",
+    "report:final-run": "npm run build && node dist/scripts/final-run.js",
+    "report:render": "npm run build && node dist/scripts/render-report.js"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
