@@ -108,10 +108,20 @@ How the code is organized: [`ARCHITECTURE.md`](ARCHITECTURE.md). How the work wa
 The complete list, with what was not tested, is in [`docs/REPORT.md`](docs/REPORT.md).
 
 ## Work before and during the sprint
-<!-- AUTHOR: fill in before submission -->
+
+The project proposal was drafted before the sprint, between 9 and 12 November 2026. The first design
+recorded pauses in an append-only database table; it was abandoned because the operator who administers
+that database can rewrite it. The protocol specification (`docs/BLUEPRINT.md`) was written on 12–13
+November and finalized on 13 November, the first day of the sprint. All code, tests, fixtures and results
+were produced from 14 November 2026, 00:02 (UTC−5) onward. No code predates the sprint.
 
 ## Use of AI tools
-<!-- AUTHOR: fill in before submission -->
+
+The specification was drafted and reviewed with several AI models (Claude, Gemini and ChatGPT). The
+implementation was written by a coding agent (Claude Code) from written task descriptions, under the
+author's review; the author made the design decisions and merged every change. A second model (GPT-6)
+reviewed the repository adversarially; its brief and findings are in `docs/review/`. Expected outcomes
+were fixed before measurement, and every number in `docs/REPORT.md` is generated from a recorded run.
 
 ## License
 
