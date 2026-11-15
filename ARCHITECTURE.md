@@ -253,5 +253,6 @@ with an install script, as unreviewed. Building it needs a C/C++ toolchain and P
 | `test/fixture-tools/` | One-time builders: the fixture (`npm run fixture:build`; local PostgreSQL and both TSAs) and the T6a/T6b receipts (`npm run tamper:receipts`; both TSAs) |
 | `test/fixtures/tamper-receipts/` | The stored real receipts for T6a and T6b, with their manifest and the T6b base time |
 | `test/tamper/` | The tamper battery (`npm run test:tamper`; offline) |
+| `test/experiments/`, `scripts/generate-dataset.ts`, `experiments/` | Experiments A (layer ladder, in `test/tamper/layer-ladder.test.ts`) and B (pause exposure): predeclared expectations, the synthetic dataset and its generator, the replay adapter, and the stored B2 artifacts |
 | `test/agent/`, `test/m3/` | The scripted reference agent and the M3 harness (`npm run m3`, `npm run m3:render`) |
 | `test/local/` | Local checks with external tools (`npm run test:local`): the DER reader against `openssl` |
