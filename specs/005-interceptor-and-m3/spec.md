@@ -79,5 +79,7 @@ the work package that implements them.
   and 20): 10 samples over 5 runs, the fewest that give a p95, reported as nearest-rank p50 and p95. One
   unmeasured warm-up run (no anchors) precedes the measured runs.
 - **M3 record size:** the mean byte length of an exported `events.jsonl` row, final LF included.
+- **M3 cost:** reported as an absolute time per ordinary event (median with minus median without), never as a
+  ratio: the scripted tools are trivial, so the baseline is close to zero by construction.
 - **M3 output:** `npm run m3` writes `test-results/m3-results.md` and the raw samples to `m3-results.json`;
   `npm run m3:render` re-renders the table from the JSON without measuring again. CI does not run M3.
