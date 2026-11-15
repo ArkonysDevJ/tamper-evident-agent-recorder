@@ -17,7 +17,7 @@ import type { DerDocument, Tlv } from '../../src/asn1/der.js';
 import { parsePemBundle } from '../../src/pki/bundle.js';
 import { parseCertificate } from '../../src/pki/certificate.js';
 import { parseReceipt } from '../../src/tsa/receipt.js';
-import { FIXTURE_DIR } from '../fixture-tools/fixture-files.js';
+import { crossCheckedReceipts } from '../helpers/real-receipts.js';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tear-openssl-'));
 let fileNo = 0;
@@ -98,8 +98,6 @@ function crossCheckCertificate(der: Uint8Array, label: string): void {
   assert.deepEqual(cert.extensions.filter((e) => e.critical).map((e) => e.oid).sort(), critical, `${label}: critical extensions`);
 }
 
-const manifest = JSON.parse(fs.readFileSync(path.join(FIXTURE_DIR, 'manifest.json'), 'utf8')) as { chain_id: string; receipts: { k: number }[] };
-const ns = path.join(FIXTURE_DIR, manifest.chain_id);
 
 test('DER reader against openssl: pinned bundle certificates', async (t) => {
   for (const [i, der] of parsePemBundle(fs.readFileSync('certs/tsa_roots.pem')).entries()) {
@@ -107,10 +105,11 @@ test('DER reader against openssl: pinned bundle certificates', async (t) => {
   }
 });
 
-test('DER reader against openssl: real receipts of the frozen fixture', async (t) => {
-  for (const { k } of manifest.receipts) {
-    await t.test(`receipt ${String(k)}`, async (t2) => {
-      const tsr = fs.readFileSync(path.join(ns, `${String(k)}.tsr`));
+test('DER reader against openssl: real receipts', async (t) => {
+  for (const { label, file } of crossCheckedReceipts()) {
+    const k = label;
+    await t.test(`receipt ${label}`, async (t2) => {
+      const tsr = fs.readFileSync(file);
       const doc = decodeDer(tsr);
       checkTree(doc);
       await t2.test('TLV tree of the whole TimeStampResp', () => assert.deepEqual(ourTree(doc), opensslTree(tsr)));
