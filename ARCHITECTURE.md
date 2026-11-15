@@ -231,6 +231,15 @@ tear-verify (src/cli/tear-verify.ts) → parseArgs → verifyOffline
 The verifier and the writer share `src/chain/step1.ts` and `src/tsa/receipt.ts`. Exit 3 (outside the §6b
 contract) remains only for an internal error.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs two jobs on every push and pull request: `build` (`npm test` and
+`npm run test:tamper`, no database) and `experiments` (`npm run test:experiments`, experiment B1 through the real
+interceptor). The `experiments` job starts an ephemeral PostgreSQL 16 service container inside the CI run, with
+`POSTGRES_HOST_AUTH_METHOD=trust` and database `tear_test`. It holds no secrets and no data beyond what the run
+creates, and it is discarded with the run. The tests that need a local database, the TSAs or `openssl`
+(`test:pg`, `test:local`, `m3`, `experiments:b2`) run locally.
+
 ## Native binding
 
 Node.js core does not expose `flock(2)` (Blueprint §5.3), so the writer lock uses `fs-ext@2.1.1`, a native
