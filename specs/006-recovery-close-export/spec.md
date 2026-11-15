@@ -52,8 +52,12 @@ Recorded here and declared in the report of the work package that implements the
   inspection and writer start-up. It validates packages with the verifier's Step 2 checks
   (`src/verify/anchors.ts`), so the recoverer is the second consumer of the receipt checks (spec 003 AC-22).
   Step 3 contradictions and missing committed evidence are reported as inconsistent before a state is chosen.
-- **E2 condition:** the single `.tsq` is resolved when row m+1 is a `checkpoint_failed(target_seq = m)` or a
-  `checkpoint_anchored(anchored_seq = m)` whose package is confirmed.
+- **E2 condition ("confirmed"):** the single `.tsq` is resolved when row m+1 is committed in SQL as a
+  `checkpoint_failed(target_seq = m)`, or as a `checkpoint_anchored(anchored_seq = m)` whose package m is confirmed
+  valid. A `.tsq` whose anchored control has no valid package never reaches E2: step 3 fails first on missing
+  confirmed evidence.
+- **E4 "valid package":** package k passes the full Step 2 (2.1–2.7, temporal predicate included) against the
+  committed log, and the control at k+1 agrees with it in `tsr_sha256` and `tsa_gen_time`.
 - **After a repair:** the state row is reloaded on writerConn and the view is classified again; anything other than
   a clean E1 (no pending anchor, no `.tmp` or `.tsq`) fails `RECONCILIATION_STATE_INCONSISTENT`.
 - **Start-up directory barrier:** run through the same guarded file queue as every namespace mutation, so it
