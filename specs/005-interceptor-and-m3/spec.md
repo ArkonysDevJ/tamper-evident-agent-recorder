@@ -82,3 +82,7 @@ the work package that implements them.
   ratio: the scripted tools are trivial, so the baseline is close to zero by construction.
 - **M3 output:** `npm run m3` writes `test-results/m3-results.md` and the raw samples to `m3-results.json`;
   `npm run m3:render` re-renders the table from the JSON without measuring again. CI does not run M3.
+- **Immutable snapshots at the adapter boundary:** on entry the interceptor takes a deep, frozen copy of the
+  arguments, of a tool result and of a final response. That copy is what is canonicalized and hashed, what the
+  tool receives and what the caller is given, never the caller's original object, so a mutation during the write
+  cannot change the value after it was recorded (independent review, finding 3).

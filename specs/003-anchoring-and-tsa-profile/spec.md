@@ -110,3 +110,8 @@ the work package that implements them.
   without contacting it, so the writer's own fallback obtains real DigiCert receipts; anchors 10 and 30 come from
   FreeTSA. Writer start-up uses the clean-E1 test classifier until spec 006. The tool refuses to overwrite an
   existing fixture.
+- **PKIStatusInfo.statusString:** when present it must hold at least one element, and each element must be a
+  UTF8String with valid UTF-8 contents (RFC 3161 §2.4.2, PKIFreeText of RFC 4210), or Step 2.2 fails. The CMS
+  version fields (`SignedData.version`, `SignerInfo.version`, RFC 5652) are decoded but not checked against the
+  values RFC 5652 assigns: §6a requires the RFC 3161 field types and constraints and does not name the CMS versions
+  (independent review, finding 2; declared as an ambiguity).
