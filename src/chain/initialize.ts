@@ -70,16 +70,20 @@ export function buildGenesisBlock(chainId: string, genesisTs: string, pepperId: 
 export const INSERT_EVENT_SQL = `INSERT INTO tear_events (chain_id, seq, ts, prev_hash, payload, block_json, entry_hash)
   VALUES ($1::uuid, $2::bigint, $3, $4, $5::jsonb, $6, $7)`;
 
-export async function initializeChain(opts: InitializeOptions): Promise<InitializeResult> {
-  // Input validation precedes any SQL work.
+/** Validates the initialization arguments and builds the requested genesis; no SQL work. */
+export function requestedGenesis(opts: InitializeOptions): Block {
   if (!isChainId(opts.chainId)) throw argumentInvalid('chain_id');
   if (parseTimestampMs(opts.genesisTs) === null) throw argumentInvalid('genesis_ts');
   if (opts.pepperId.length === 0 || !opts.pepperId.isWellFormed() || opts.pepperId.includes('\u0000')) {
     throw argumentInvalid('pepper_id');
   }
   if (opts.bundleBytes.length === 0) throw argumentInvalid('bundle');
-  const requested = buildGenesisBlock(opts.chainId, opts.genesisTs, opts.pepperId, bundleSha256(opts.bundleBytes));
+  return buildGenesisBlock(opts.chainId, opts.genesisTs, opts.pepperId, bundleSha256(opts.bundleBytes));
+}
 
+export async function initializeChain(opts: InitializeOptions): Promise<InitializeResult> {
+  // Input validation precedes any SQL work.
+  const requested = requestedGenesis(opts);
   const ex = await acquireExclusion(opts);
   try {
     return await initializeUnderExclusion(ex, opts, requested);
@@ -88,7 +92,8 @@ export async function initializeChain(opts: InitializeOptions): Promise<Initiali
   }
 }
 
-async function initializeUnderExclusion(ex: Exclusion, opts: InitializeOptions, requested: Block): Promise<InitializeResult> {
+/** §5.3a on an exclusion already held; the caller releases it. */
+export async function initializeUnderExclusion(ex: Exclusion, opts: InitializeOptions, requested: Block): Promise<InitializeResult> {
   const loaded = await loadChain(ex.conn, opts.chainId);
   const entries = inventoryNamespace(ex.nsPath);
   const hasEvents = loaded.events.length > 0;

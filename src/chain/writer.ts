@@ -28,7 +28,8 @@ import { SerialQueue } from '../util/serial-queue.js';
 import { acquireExclusion, releaseExclusion } from './exclusion.js';
 import type { Exclusion } from './exclusion.js';
 import { ZERO_HASH } from './ids.js';
-import { INSERT_EVENT_SQL } from './initialize.js';
+import { INSERT_EVENT_SQL, initializeUnderExclusion, requestedGenesis } from './initialize.js';
+import type { InitializeOptions } from './initialize.js';
 import { notImplementedClassifier } from './interfaces.js';
 import type { AnchorHook, PendingAnchor, RecoveryClassifier } from './interfaces.js';
 import type { CutProfile } from './profile.js';
@@ -168,6 +169,48 @@ export class ChainWriter {
       if (ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
       fsyncDirectory(ex.nsPath);
       return new ChainWriter(ex, checker, opts, bundle, state.chainClosed);
+    } catch (err) {
+      await releaseExclusion(ex);
+      throw err;
+    }
+  }
+
+  /**
+   * Creates the chain in a new, empty namespace and starts the writer in the
+   * same session (same flock and writerConn) when initializeChain returns
+   * INITIALIZED.
+   *
+   * Implementation choice (not normative), provisional until spec 006: the
+   * writer accepts events only in the session that created the chain. Any
+   * existing chain (ALREADY_INITIALIZED, RECOVERY_REQUIRED or an inspection
+   * error) is refused: opening it needs the §5.6 start-up of spec 006.
+   */
+  static async initializeAndOpen(opts: WriterOptions & Omit<InitializeOptions, keyof WriterOptions | 'classifier'>): Promise<ChainWriter> {
+    const initOpts: InitializeOptions = { ...opts, classifier: notImplementedClassifier };
+    const requested = requestedGenesis(initOpts);
+    let bundle: LoadedBundle;
+    try {
+      bundle = loadBundle(opts.bundleBytes);
+    } catch (err) {
+      throw new TearError('TSA_BUNDLE_UNLOADABLE', (err as Error).message);
+    }
+    const ex = await acquireExclusion(opts);
+    try {
+      const result = await initializeUnderExclusion(ex, initOpts, requested);
+      if (result !== 'INITIALIZED') {
+        throw new TearError('WRITER_START_NOT_IMPLEMENTED', `${result}: opening an existing chain needs the §5.6 start-up`);
+      }
+      // Same session: load and validate exactly what this session committed.
+      const loaded = await loadChain(ex.conn, opts.chainId);
+      if (loaded.stateRow === null) throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'state row missing after creation');
+      const checker = validateEvents(loaded.events, opts.chainId, bundleSha256(opts.bundleBytes));
+      const state = validateState(loaded.stateRow, checker);
+      if (checker.length !== 1 || state.pending !== null || state.chainClosed || inventoryNamespace(ex.nsPath).length > 0) {
+        throw new TearError('RECONCILIATION_STATE_INCONSISTENT', 'a newly created chain must hold only its genesis');
+      }
+      if (ex.conn.invalidated) throw new TearError('WRITER_INVALIDATED');
+      fsyncDirectory(ex.nsPath);
+      return new ChainWriter(ex, checker, opts, bundle, false);
     } catch (err) {
       await releaseExclusion(ex);
       throw err;
