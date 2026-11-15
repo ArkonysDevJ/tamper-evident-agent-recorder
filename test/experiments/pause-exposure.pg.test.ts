@@ -7,8 +7,8 @@
 //   B2: the stored artifacts of the one-time real-TSA run (experiments/b2/, written by npm run experiments:b2)
 //       are analyzed offline for exposure in time, when present.
 // Expected outcomes were predeclared in test/experiments/expected.ts. Writes test-results/pause-exposure.md.
-// The dataset is synthetic; the exposure window is a property of the design (an anchor every 10 application
-// events) measured on this workload, not a finding about agents.
+// The dataset is synthetic; the exposure window is a property of the design (automatic anchors on application
+// events at physical sequence numbers divisible by 10) measured on this workload, not a finding about agents.
 
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -101,6 +101,16 @@ test('009 B1 pause exposure (full dataset, test TSA)', async () => {
     return b.reduce((x, y) => x + y, 0) / b.length;
   };
 
+  // Non-vacuity (review finding 5): the analyzer enumerates every pause the replay recorded, and the uncovered
+  // list is exactly the pauses after the last verified anchor, counted independently from the exported rows.
+  const recordedPauses = records.filter((r) => r.kind === 'epistemic_pause').length;
+  assert.equal(recordedPauses, readDataset().filter((s) => s.kind === 'epistemic_pause').length);
+  assert.equal(before.pauses, recordedPauses);
+  assert.equal(afterClose.pauses, recordedPauses);
+  const tailPauses = readLog(pre.logPath).filter((r) => r.payload['event_type'] === 'epistemic_pause' && r.seq > before.maxK).length;
+  assert.equal(before.uncovered.length, tailPauses);
+  assert.equal(before.covered.length + before.uncovered.length, recordedPauses);
+
   // Checks against the predeclared expectations.
   const ev = before.covered.map((c) => c.events);
   const afterFirst = before.covered.filter((c) => c.seq > 10).map((c) => c.events);
@@ -147,7 +157,14 @@ test('009 B2 pause exposure (stored real-TSA artifacts, offline analysis)', (t) 
   const ns = (d: string): string => path.join(B2_DIR, d, fs.readdirSync(path.join(B2_DIR, d)).find((n) => n !== 'events.jsonl')!);
   const before = measureExposure(path.join(B2_DIR, 'pre-close', 'events.jsonl'), ns('pre-close'), bundlePath, true);
   const afterClose = measureExposure(path.join(B2_DIR, 'post-close', 'events.jsonl'), ns('post-close'), bundlePath, true);
+  // Non-vacuity (review finding 5): the stored B2 log holds 11 pauses, and every covered pause has a time value.
+  const storedPauses = readLog(path.join(B2_DIR, 'pre-close', 'events.jsonl')).filter((r) => r.payload['event_type'] === 'epistemic_pause').length;
+  assert.equal(storedPauses, 11);
+  assert.equal(before.pauses, storedPauses);
+  assert.equal(afterClose.pauses, storedPauses);
+  assert.ok([...before.covered, ...afterClose.covered].every((c) => c.seconds !== null));
   const secs = [...before.covered, ...afterClose.covered].map((c) => c.seconds!).filter((x) => x !== null);
+  assert.equal(secs.length, before.covered.length + afterClose.covered.length);
   check('B2 exposure in time: lower bound', `≥ ${String(EXPECTED_EXPOSURE.timeLowerBoundSeconds)} s`, `${String(stats(secs)?.min.toFixed(3))} s`, (stats(secs)?.min ?? 0) >= EXPECTED_EXPOSURE.timeLowerBoundSeconds);
   check('B2 all pauses covered after closeChain', 'all covered', `${String(afterClose.covered.length)}/${String(afterClose.pauses)}`, afterClose.uncovered.length === 0);
   const rows = readLog(path.join(B2_DIR, 'post-close', 'events.jsonl'));
@@ -168,8 +185,9 @@ after(() => {
   const text = [
     '# Pause exposure window (experiment B)',
     '',
-    'The dataset is synthetic (experiments/dataset/). The exposure window is a property of the design (an automatic',
-    'anchor every 10 application events) measured on this workload; it is not a finding about agents or models.',
+    'The dataset is synthetic (experiments/dataset/). The exposure window is a property of the design (automatic',
+    'anchors on application events at physical sequence numbers divisible by 10) measured on this workload; it is not',
+    'a finding about agents or models.',
     'Expected outcomes were predeclared before measurement (test/experiments/expected.ts).',
     '',
     ...sections,
