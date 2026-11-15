@@ -3,3 +3,4 @@
 # opaque for diff and merge so no tool rewrites them.
 docs/BLUEPRINT.md    eol=lf -diff -merge
 certs/tsa_roots.pem  eol=lf -diff -merge
+docs/BLUEPRINT.rendered.md eol=lf
