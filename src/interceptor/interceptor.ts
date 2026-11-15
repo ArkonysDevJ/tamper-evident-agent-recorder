@@ -86,6 +86,22 @@ export function adapterJson(value: unknown, what: string): JsonValue {
   return value as JsonValue;
 }
 
+function deepFreeze<T>(v: T): T {
+  if (v !== null && typeof v === 'object') {
+    for (const k of Object.keys(v)) deepFreeze((v as Record<string, unknown>)[k]);
+    Object.freeze(v);
+  }
+  return v;
+}
+
+/**
+ * The adapter value as an immutable snapshot, taken on entry: the snapshot is what is canonicalized and hashed,
+ * and what the tool receives or the caller is given, never the caller's original reference (review finding 3).
+ */
+export function snapshotJson(value: unknown, what: string): JsonValue {
+  return deepFreeze(structuredClone(adapterJson(value, what)));
+}
+
 /**
  * Implementation choice (not normative; §10 leaves result_digest for a failed
  * tool open): the result value of a failed tool is
@@ -103,6 +119,8 @@ export interface ToolCallHandle {
   readonly taskId: string;
   readonly toolName: string;
   readonly call: AppendResult;
+  /** The recorded arguments: the immutable snapshot that was hashed. */
+  readonly args: JsonValue;
 }
 
 export type ToolOutcome = { readonly ok: true; readonly value: JsonValue } | { readonly ok: false; readonly errorType: string; readonly message: string };
@@ -145,7 +163,7 @@ export class Interceptor {
 
   /** Records tool_call; resolves only after its COMMIT is confirmed. The tool has not run. */
   async beginCall(taskId: string, toolName: string, callId: string, args: unknown): Promise<ToolCallHandle> {
-    const json = adapterJson(args, 'tool arguments');
+    const json = snapshotJson(args, 'tool arguments');
     const call = await this.writer.append(
       payload({
         event_type: 'tool_call',
@@ -156,12 +174,12 @@ export class Interceptor {
         args_hmac: argsHmac(this.pepper, json),
       }),
     );
-    return { callId, taskId, toolName, call };
+    return { callId, taskId, toolName, call, args: json };
   }
 
   /** Records tool_result; resolves only after its COMMIT is confirmed. */
   async completeCall(h: Pick<ToolCallHandle, 'callId' | 'taskId' | 'toolName'>, outcome: ToolOutcome): Promise<AppendResult> {
-    const value = outcome.ok ? adapterJson(outcome.value, 'tool result') : failedToolValue(outcome.errorType, outcome.message);
+    const value = outcome.ok ? snapshotJson(outcome.value, 'tool result') : failedToolValue(outcome.errorType, outcome.message);
     return this.writer.append(
       payload({
         event_type: 'tool_result',
@@ -185,12 +203,11 @@ export class Interceptor {
     const handle = await this.beginCall(taskId, toolName, callId, args);
     let outcome: ToolOutcome;
     try {
-      outcome = { ok: true, value: await tool(args as JsonValue) };
+      outcome = { ok: true, value: snapshotJson(await tool(handle.args), 'tool result') };
     } catch (err) {
       if (!(err instanceof ToolError)) throw err; // An adapter fault, not a tool result: nothing is delivered.
       outcome = { ok: false, errorType: err.errorType, message: err.message };
     }
-    if (outcome.ok) adapterJson(outcome.value, 'tool result');
     await this.completeCall(handle, outcome);
     if (!outcome.ok) throw new ToolError(outcome.errorType, outcome.message);
     return outcome.value;
@@ -212,7 +229,7 @@ export class Interceptor {
 
   /** Records agent_final_response; returns the answer for delivery only after the COMMIT is confirmed. */
   async finalResponse(taskId: string, response: unknown): Promise<JsonValue> {
-    const json = adapterJson(response, 'final response');
+    const json = snapshotJson(response, 'final response');
     await this.writer.append(
       payload({ event_type: 'agent_final_response', operation: OPERATION.finalResponse, task_id: taskId, response_digest: responseDigest(json) }),
     );

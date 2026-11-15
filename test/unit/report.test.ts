@@ -42,9 +42,9 @@ const items: [string, RegExp[]][] = [
 test('009 experiments in the report and the README: B1 and B2 apart, no time values as a result', opts, () => {
   assert.match(report, /### B1 · full dataset \(1000 steps\), offline test TSA/);
   assert.match(report, /### B2 · first 150 application events, real TSAs/);
-  assert.match(report, /Exposure in time \(B2\) is not reported as a result\. FreeTSA signs `genTime` in whole seconds/);
-  assert.doesNotMatch(report, /Exposure in time \(covered pauses\)/);
-  assert.doesNotMatch(report, /\| B2 exposure in time/);
+  assert.match(report, /Exposure in time \(B2\), as measured: from \S+ s to \S+ s/);
+  assert.match(report, /the exposure in time is not reported as a result; the reported\s+result is the exposure in events/);
+  assert.match(report, /exercise the recording of tool calls, not the invocation of a registered tool through `callTool`/);
   assert.match(report, /The undetected deletion of pauses is shown on the frozen fixture by T3b/);
   assert.match(report, /\| Case \| L0 · plain log \|/);
   const readme = fs.readFileSync(README_PATH, 'utf8');

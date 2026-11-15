@@ -19,9 +19,9 @@ from a design written before any code ([`docs/BLUEPRINT.md`](docs/BLUEPRINT.md))
 | Layer ladder (17 cases; detected · accepted · reduced) | plain log: 0 detected · 17 accepted · 0 reduced; local chain: 7 detected · 10 accepted · 0 reduced; with anchors: 11 detected · 4 accepted · 2 reduced; with retained references: 13 detected · 2 accepted · 2 reduced |
 | Pause exposure, B1 (1000 synthetic steps, offline test TSA) | exposure in events before close: min 0 · median 5 · max 8 events; after closeChain 125 of 125 pauses covered; truncating the unanchored tail removed 0 pauses |
 | Pause exposure, B2 (first 150 application events, real time stamps: freetsa 17) | exposure in events before close: min 0 · median 5 · max 8 events; after closeChain 11 of 11 pauses covered; exposure in time fell below the whole-second resolution of the TSA and is not reported |
-| M3: median per ordinary event with the interceptor (target under 15 ms) | 1.914 ms (met) |
+| M3: median per ordinary event with the interceptor (target under 15 ms) | 1.784 ms (met) |
 | M3: average record size (target under 2 KB) | 470.7 bytes (met) |
-| Final run of every suite | no failures: test 646/672 passed (26 skipped), test:pg 238/238 passed, test:tamper 43/43 passed, test:local 35/35 passed, test:experiments 2/2 passed |
+| Final run of every suite | no failures: test 652/682 passed (30 skipped), test:pg 242/242 passed, test:tamper 43/43 passed, test:local 182/182 passed, test:experiments 2/2 passed |
 <!-- results:end -->
 
 The full report, with what was not tested, is [`docs/REPORT.md`](docs/REPORT.md).

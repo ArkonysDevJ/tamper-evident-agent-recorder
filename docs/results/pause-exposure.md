@@ -1,7 +1,8 @@
 # Pause exposure window (experiment B)
 
-The dataset is synthetic (experiments/dataset/). The exposure window is a property of the design (an automatic
-anchor every 10 application events) measured on this workload; it is not a finding about agents or models.
+The dataset is synthetic (experiments/dataset/). The exposure window is a property of the design (automatic
+anchors on application events at physical sequence numbers divisible by 10) measured on this workload; it is not
+a finding about agents or models.
 Expected outcomes were predeclared before measurement (test/experiments/expected.ts).
 
 ## B1 · full dataset (1000 steps), offline test TSA
@@ -17,9 +18,9 @@ Truncation demonstration (copy of the pre-close export without rows after 1880):
 
 | Argument class | tool_call records | Mean exported row size | Median latency per tool_call event |
 | --- | --- | --- | --- |
-| small | 486 | 473.0 bytes | 2.307 ms |
-| medium | 177 | 473.0 bytes | 2.406 ms |
-| large | 32 | 472.3 bytes | 2.512 ms |
+| small | 486 | 473.0 bytes | 1.916 ms |
+| medium | 177 | 473.0 bytes | 1.929 ms |
+| large | 32 | 472.3 bytes | 1.874 ms |
 
 ## B2 · first 150 application events, real TSAs (retained order: FreeTSA, then DigiCert on failure)
 
@@ -45,6 +46,6 @@ Exposure in time can be negative: FreeTSA signs genTime in whole seconds, so a t
 | B1 truncation: exit code | 0 | 0 | matching |
 | B1 truncation: pauses removed = pauses after the last anchor | 0 | 0 | matching |
 | B1 tool_call record size spread across argument classes | ≤ 16 bytes | 0.7 bytes | matching |
-| B1 tool_call median latency, ~20 KB minus ~100 B | < 1 ms | 0.205 ms | matching |
+| B1 tool_call median latency, ~20 KB minus ~100 B | < 1 ms | -0.042 ms | matching |
 | B2 exposure in time: lower bound | ≥ -5 s | -1.428 s | matching |
 | B2 all pauses covered after closeChain | all covered | 11/11 | matching |
