@@ -23,7 +23,7 @@ const items: [string, RegExp[]][] = [
   ['007 AC-6 bundle-custody', [/10335e1e5d816b98665e5f4cb21ed92dd0637d2957658e0c34d55c365240ccfd/, /2026-11-14 at 15:13 UTC/, /Root and signer checks/]],
   ['007 AC-7 cut-profiles', [/Active profile: \*\*Base\*\*/]],
   ['007 AC-8 not-tested', [/### Not tested/, /### Known debt \(Blueprint §10\)/, /### Failed/]],
-  ['007 AC-9 m3', [/## 8\. Overhead \(M3\), as measured/]],
+  ['007 AC-9 m3', [/## 8\. Overhead \(M3\), as measured/, /M3 was measured by `npm run m3` \(spec 005\) on commit `[0-9a-f]{40}`/]],
   ['007 AC-10 known-debt-entries', [/ESSCertIDv2/, /pathLenConstraint/, /10\.0/]],
   ['007 AC-11 implementation-choices', [/## 10\. Implementation choices \(not normative\)/, /### Spec 008/]],
   ['007 AC-12 partly-tested-data-core', [/\*\*001 AC-9\*\*/, /\*\*001 AC-12\*\*/, /\*\*001 AC-15\*\*/]],

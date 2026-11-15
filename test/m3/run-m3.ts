@@ -12,6 +12,7 @@
 //
 // Run: npm run m3
 
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -115,7 +116,11 @@ async function main(): Promise<void> {
     withoutInterceptor.push(await directRun());
     process.stdout.write(`run ${String(r + 1)}/${String(RUNS)} done\n`);
   }
-  const input = { withInterceptor, withoutInterceptor, environment: await environment(), stamps, eventsPerRun: EVENTS };
+  // Provenance: the commit measured and whether the working tree matched it (tracked files only).
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const worktreeClean = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { encoding: 'utf8' }).trim() === '';
+  const environment_ = { Commit: `${commit}${worktreeClean ? '' : ' (working tree modified)'}`, ...(await environment()) };
+  const input = { withInterceptor, withoutInterceptor, environment: environment_, stamps, eventsPerRun: EVENTS, commit, worktreeClean, finishedAt: new Date().toISOString() };
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, 'm3-results.md'), renderM3(input));
   fs.writeFileSync(path.join(OUT_DIR, 'm3-results.json'), `${JSON.stringify({ ...input, summary: summarize(input) }, null, 2)}\n`);
