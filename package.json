@@ -17,7 +17,9 @@
     "test": "npm run build && node --test \"dist/test/unit/**/*.test.js\"",
     "test:pg": "npm run build && node --test --test-concurrency=1 \"dist/test/pg/**/*.test.js\"",
     "fixture:build": "npm run build && node dist/test/fixture-tools/build-frozen-fixture.js",
-    "test:local": "npm run build && node --test \"dist/test/local/**/*.test.js\""
+    "test:local": "npm run build && node --test \"dist/test/local/**/*.test.js\"",
+    "test:tamper": "npm run build && node --test --test-concurrency=1 \"dist/test/tamper/**/*.test.js\"",
+    "tamper:receipts": "npm run build && node dist/test/fixture-tools/build-tamper-receipts.js"
   },
   "devDependencies": {
     "@types/node": "24.19.2",
