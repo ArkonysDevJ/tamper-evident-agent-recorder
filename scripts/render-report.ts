@@ -93,6 +93,57 @@ function implementationChoices(): string[] {
   return out;
 }
 
+/** Pause counts and exposure in events of one run and moment ("Before close" or "After closeChain"). */
+export function exposureLine(exposure: string, run: 'B1' | 'B2', moment: 'Before close' | 'After closeChain'): { pauses: string; covered: string; events: string } {
+  const section = run === 'B1' ? sectionBetween(exposure, '## B1', '## B2') : sectionBetween(exposure, '## B2', '## Predeclared expectations');
+  const lines = section.split('\n');
+  const i = lines.findIndex((l) => l.startsWith(`- ${moment}:`));
+  if (i < 0) throw new Error(`${run} ${moment} not found`);
+  const m = /^- [^:]+: (\d+) pauses; .*; (\d+) covered, (\d+) uncovered\.$/.exec(lines[i]!);
+  const e = /Exposure in events \(covered pauses\): (.*)\.$/.exec(lines[i + 1] ?? '');
+  if (m === null || e === null) throw new Error(`${run} ${moment} line not parsed`);
+  return { pauses: m[1]!, covered: m[2]!, events: e[1]! };
+}
+
+/**
+ * Experiment B for the report. B1 and B2 stay apart. Exposure in time is not reported as a result: FreeTSA signs
+ * genTime in whole seconds while the scripted run records events in milliseconds, so it fell below the TSA's
+ * resolution and depends on the pace of the agent; the reported result is the exposure in events.
+ */
+function exposureSection(exposure: string): string[] {
+  const keep = (section: string): string[] =>
+    section
+      .split('\n')
+      .filter((l) => !l.includes('Exposure in time'))
+      .map((l) => l.replace(/^## /, '### ').replace(/Close: (\w+) \(B(\d)\)/, 'Close: $1 (closeChain branch B$2)'));
+  return [
+    ...keep(sectionBetween(exposure, '## B1', '## B2')),
+    '',
+    ...keep(sectionBetween(exposure, '## B2', '## Predeclared expectations')),
+    '',
+    'Exposure in time (B2) is not reported as a result. FreeTSA signs `genTime` in whole seconds, while the scripted',
+    'run records events in milliseconds; in this run every covering anchor was issued within the same second as the',
+    'pause, so the exposure in time fell below the resolution of the TSA and depends on the pace of the agent. The',
+    'reported result is the exposure in events.',
+    '',
+    `The truncation of the unanchored tail (B1) removed ${exposureFacts(exposure).removedPauses} pauses in this dataset; it is reported as measured.`,
+    'The undetected deletion of pauses is shown on the frozen fixture by T3b (section 1), whose deleted rows 45..50',
+    'are epistemic pauses.',
+    '',
+    'Predeclared checks (`test/experiments/expected.ts`):',
+    '',
+    ...tableAfter(exposure, '| Check |').filter((l) => !l.startsWith('| B2 exposure in time')),
+  ];
+}
+
+/** Pauses removed by the B1 truncation demonstration, and the B2 time-stamp requests, from the generated file. */
+export function exposureFacts(exposure: string): { removedPauses: string; b2Stamps: string } {
+  const t = / (\d+) rows and (\d+) pauses disappeared/.exec(exposure);
+  const st = /Time-stamp requests: ([^;.]+)[;.]/.exec(sectionBetween(exposure, '## B2', '## Predeclared expectations'));
+  if (t === null || st === null) throw new Error('exposure facts not found');
+  return { removedPauses: t[2]!, b2Stamps: st[1]!.trim() };
+}
+
 /** Blueprint §10 bullets, verbatim. */
 function knownDebt(): string[] {
   const text = R('docs/BLUEPRINT.md');
@@ -276,9 +327,7 @@ export function renderReport(): string {
     'The dataset is synthetic (`experiments/dataset/`). The exposure window is a property of the design (an automatic',
     'anchor every 10 application events) measured on this workload; it is not a finding about agents or models.',
     '',
-    sectionBetween(exposure, '## B1', '## Predeclared expectations').replace(/^## /gm, '### '),
-    '',
-    ...tableAfter(exposure, '| Check |'),
+    ...exposureSection(exposure),
     '',
     '## Sources',
     '',
@@ -301,6 +350,12 @@ export function renderReadmeResults(): string {
   if (primary === null) throw new Error('M1 summary line not found');
   const totals = tableAfter(ladder, '| Case |').find((l) => l.startsWith('| **Totals**'))!.split('|').slice(2, 6).map((c) => c.trim());
   const passed = run.suites.every((s) => s.exitCode === 0 && s.fail === 0);
+  const exposure = R('docs/results/pause-exposure.md');
+  const b1 = exposureLine(exposure, 'B1', 'Before close');
+  const b1c = exposureLine(exposure, 'B1', 'After closeChain');
+  const b2 = exposureLine(exposure, 'B2', 'Before close');
+  const b2c = exposureLine(exposure, 'B2', 'After closeChain');
+  const facts = exposureFacts(exposure);
   return [
     README_START,
     '| What | Result |',
@@ -308,6 +363,8 @@ export function renderReadmeResults(): string {
     `| Tamper matrix of Blueprint §7 (M1, 15 primary results) | ${primary[1]!}/${primary[2]!} match the specified result (A2a ${primary[3]!}, A2b ${primary[4]!}), including the specified "not detected" and degraded-coverage rows |`,
     `| X1 (deleted packages), X2 (operator-made bundle) | X1 ${primary[5]!}, X2 ${primary[6]!} |`,
     `| Layer ladder (17 cases; detected · accepted · reduced) | plain log: ${totals[0]!}; local chain: ${totals[1]!}; with anchors: ${totals[2]!}; with retained references: ${totals[3]!} |`,
+    `| Pause exposure, B1 (1000 synthetic steps, offline test TSA) | exposure in events before close: ${b1.events}; after closeChain ${b1c.covered} of ${b1c.pauses} pauses covered; truncating the unanchored tail removed ${facts.removedPauses} pauses |`,
+    `| Pause exposure, B2 (first 150 application events, real time stamps: ${facts.b2Stamps}) | exposure in events before close: ${b2.events}; after closeChain ${b2c.covered} of ${b2c.pauses} pauses covered; exposure in time fell below the whole-second resolution of the TSA and is not reported |`,
     `| M3: median per ordinary event with the interceptor (target under 15 ms) | ${m3.ordinaryMedianMs.toFixed(3)} ms (${m3.ordinaryMet ? 'met' : 'not met'}) |`,
     `| M3: average record size (target under 2 KB) | ${m3.meanRecordBytes.toFixed(1)} bytes (${m3.recordMet ? 'met' : 'not met'}) |`,
     `| Final run of every suite | ${passed ? 'no failures' : 'failures'}: ${run.suites.map(suiteCounts).join(', ')} |`,

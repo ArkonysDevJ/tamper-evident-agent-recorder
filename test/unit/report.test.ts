@@ -39,6 +39,21 @@ const items: [string, RegExp[]][] = [
   ['007 AC-22 partly-tested-recovery', [/real power loss during recovery/]],
   ['007 AC-23 evidence-before-recovery', [/an evidence package taken between a crash and the next recovery/]],
 ];
+test('009 experiments in the report and the README: B1 and B2 apart, no time values as a result', opts, () => {
+  assert.match(report, /### B1 · full dataset \(1000 steps\), offline test TSA/);
+  assert.match(report, /### B2 · first 150 application events, real TSAs/);
+  assert.match(report, /Exposure in time \(B2\) is not reported as a result\. FreeTSA signs `genTime` in whole seconds/);
+  assert.doesNotMatch(report, /Exposure in time \(covered pauses\)/);
+  assert.doesNotMatch(report, /\| B2 exposure in time/);
+  assert.match(report, /The undetected deletion of pauses is shown on the frozen fixture by T3b/);
+  assert.match(report, /\| Case \| L0 · plain log \|/);
+  const readme = fs.readFileSync(README_PATH, 'utf8');
+  assert.match(readme, /\| Pause exposure, B1 \(1000 synthetic steps, offline test TSA\) \|/);
+  assert.match(readme, /\| Pause exposure, B2 \(first 150 application events, real time stamps: freetsa \d+\) \|/);
+  assert.match(readme, /synthetic, produced by a script with a fixed seed/);
+  assert.match(readme, /npm run dataset:generate/);
+});
+
 for (const [name, patterns] of items) {
   test(name, opts, () => {
     for (const p of patterns) assert.match(report, p);
