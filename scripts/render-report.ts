@@ -402,6 +402,7 @@ export function renderReadmeResults(): string {
   const b2 = exposureLine(exposure, 'B2', 'Before close');
   const b2c = exposureLine(exposure, 'B2', 'After closeChain');
   const facts = exposureFacts(exposure);
+  const b2t = b2TimeRange(exposure);
   return [
     README_START,
     '| What | Result |',
@@ -410,10 +411,10 @@ export function renderReadmeResults(): string {
     `| X1 (deleted packages), X2 (operator-made bundle) | X1 ${primary[5]!}, X2 ${primary[6]!} |`,
     `| Layer ladder (17 cases; detected · accepted · reduced) | plain log: ${totals[0]!}; local chain: ${totals[1]!}; with anchors: ${totals[2]!}; with retained references: ${totals[3]!} |`,
     `| Pause exposure, B1 (1000 synthetic steps, offline test TSA) | exposure in events before close: ${b1.events}; after closeChain ${b1c.covered} of ${b1c.pauses} pauses covered; truncating the unanchored tail removed ${facts.removedPauses} pauses |`,
-    `| Pause exposure, B2 (first 150 application events, real time stamps: ${facts.b2Stamps}) | exposure in events before close: ${b2.events}; after closeChain ${b2c.covered} of ${b2c.pauses} pauses covered; exposure in time fell below the whole-second resolution of the TSA and is not reported |`,
+    `| Pause exposure, B2 (first 150 application events, real time stamps: ${facts.b2Stamps}) | exposure in events before close: ${b2.events}; after closeChain ${b2c.covered} of ${b2c.pauses} pauses covered; exposure in time is not reported: signed times differ from the pause times by ${b2t.min} s to ${b2t.max} s, and these artifacts cannot separate the TSA's whole-second resolution from the host/TSA clock difference |`,
     `| M3: median per ordinary event with the interceptor (target under 15 ms) | ${m3.ordinaryMedianMs.toFixed(3)} ms (${m3.ordinaryMet ? 'met' : 'not met'}) |`,
     `| M3: average record size (target under 2 KB) | ${m3.meanRecordBytes.toFixed(1)} bytes (${m3.recordMet ? 'met' : 'not met'}) |`,
-    `| Final run of every suite | ${passed ? 'no failures' : 'failures'}: ${run.suites.map(suiteCounts).join(', ')} |`,
+    `| Final run of every suite | ${passed ? 'no failures' : 'failures'}: ${run.suites.map((s) => s.suite === 'test' && s.skipped > 0 ? suiteCounts(s).replace(/ skipped\)$/, ' skipped: the report\'s own checks, which run once docs/REPORT.md exists)') : suiteCounts(s)).join(', ')} |`,
     README_END,
   ].join('\n');
 }

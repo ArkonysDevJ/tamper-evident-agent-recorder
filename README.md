@@ -18,10 +18,10 @@ from a design written before any code ([`docs/BLUEPRINT.md`](docs/BLUEPRINT.md))
 | X1 (deleted packages), X2 (operator-made bundle) | X1 match, X2 match |
 | Layer ladder (17 cases; detected · accepted · reduced) | plain log: 0 detected · 17 accepted · 0 reduced; local chain: 7 detected · 10 accepted · 0 reduced; with anchors: 11 detected · 4 accepted · 2 reduced; with retained references: 13 detected · 2 accepted · 2 reduced |
 | Pause exposure, B1 (1000 synthetic steps, offline test TSA) | exposure in events before close: min 0 · median 5 · max 8 events; after closeChain 125 of 125 pauses covered; truncating the unanchored tail removed 0 pauses |
-| Pause exposure, B2 (first 150 application events, real time stamps: freetsa 17) | exposure in events before close: min 0 · median 5 · max 8 events; after closeChain 11 of 11 pauses covered; exposure in time fell below the whole-second resolution of the TSA and is not reported |
+| Pause exposure, B2 (first 150 application events, real time stamps: freetsa 17) | exposure in events before close: min 0 · median 5 · max 8 events; after closeChain 11 of 11 pauses covered; exposure in time is not reported: signed times differ from the pause times by -1.428 s to -0.138 s, and these artifacts cannot separate the TSA's whole-second resolution from the host/TSA clock difference |
 | M3: median per ordinary event with the interceptor (target under 15 ms) | 1.784 ms (met) |
 | M3: average record size (target under 2 KB) | 470.7 bytes (met) |
-| Final run of every suite | no failures: test 652/682 passed (30 skipped), test:pg 242/242 passed, test:tamper 43/43 passed, test:local 182/182 passed, test:experiments 2/2 passed |
+| Final run of every suite | no failures: test 652/682 passed (30 skipped: the report's own checks, which run once docs/REPORT.md exists), test:pg 242/242 passed, test:tamper 43/43 passed, test:local 182/182 passed, test:experiments 2/2 passed |
 <!-- results:end -->
 
 The full report, with what was not tested, is [`docs/REPORT.md`](docs/REPORT.md).
@@ -31,7 +31,7 @@ The full report, with what was not tested, is [`docs/REPORT.md`](docs/REPORT.md)
 Requirements: Node.js 24 (see `.nvmrc`), a C/C++ toolchain and Python (the `flock` binding is compiled at install
 time), Linux with an ext4 or xfs filesystem.
 Supported platform: Linux on ext4 or xfs (the specification requires it and the recorder checks the filesystem at
-start-up). Built and tested only on Ubuntu 24.04 under WSL2. macOS and native Windows are not supported and were not
+start-up). Built and tested only on Ubuntu 24.04 under WSL2; xfs is accepted by the filesystem check but was exercised only through a stubbed statfs. macOS and native Windows are not supported and were not
 tested; on Windows, use WSL2.
 
 ```sh
